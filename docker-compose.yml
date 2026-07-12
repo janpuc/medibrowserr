@@ -1,0 +1,20 @@
+services:
+  medibrowserr:
+    image: ghcr.io/janpuc/medibrowserr:latest
+    build: .
+    container_name: medibrowserr
+    ports:
+      - "3000:3000"
+    environment:
+      - TZ=Europe/Warsaw
+      # Optional seeds; everything can also be set in the UI.
+      # - MEDICOVER_USER=
+      # - MEDICOVER_PASS=
+      # - PUSHOVER_TOKEN=
+      # - PUSHOVER_USER=
+    volumes:
+      - medibrowserr-data:/data
+    restart: unless-stopped
+
+volumes:
+  medibrowserr-data:

@@ -1,0 +1,29 @@
+# Example ingress — adjust host, class and TLS to your cluster.
+# The app has no built-in authentication: keep it on an internal network or
+# put basic-auth / an auth proxy (Authelia, oauth2-proxy…) in front of it.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: medibrowserr
+  labels:
+    app.kubernetes.io/name: medibrowserr
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt
+  #   nginx.ingress.kubernetes.io/auth-type: basic
+  #   nginx.ingress.kubernetes.io/auth-secret: medibrowserr-basic-auth
+spec:
+  # ingressClassName: nginx
+  rules:
+    - host: medibrowserr.example.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: medibrowserr
+                port:
+                  name: http
+  # tls:
+  #   - hosts: [medibrowserr.example.internal]
+  #     secretName: medibrowserr-tls

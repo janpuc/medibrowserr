@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+@theme {
+  /* Clinic-paper palette: cool paper, navy ink, deep clinic blue,
+     "Rp. green" for caught slots, calm rust for errors. */
+  --color-paper: #f5f7f9;
+  --color-surface: #ffffff;
+  --color-ink: #12283e;
+  --color-ink-soft: #51677c;
+  --color-line: #dde5ec;
+  --color-clinic: #0b5fa5;
+  --color-clinic-deep: #094b83;
+  --color-clinic-wash: #eaf2f9;
+  --color-found: #0e7d5d;
+  --color-found-wash: #e9f5f0;
+  --color-alert: #b0431f;
+  --color-alert-wash: #f9ede8;
+  --color-amber: #9a6b15;
+  --color-amber-wash: #f8f1e2;
+
+  --font-display: var(--font-bricolage), system-ui, sans-serif;
+  --font-sans: var(--font-plex), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  --shadow-card: 0 1px 2px rgb(18 40 62 / 0.05), 0 4px 16px -8px rgb(18 40 62 / 0.08);
+}
+
+html {
+  background: var(--color-paper);
+}
+
+body {
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Ambient pulse for on-duty monitors; disabled for reduced motion. */
+@keyframes duty-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(14 125 93 / 0.45);
+  }
+  60% {
+    box-shadow: 0 0 0 5px rgb(14 125 93 / 0);
+  }
+}
+.duty-dot {
+  animation: duty-pulse 2.4s ease-out infinite;
+}
+
+/* New-find ticket stamps in with a tiny settle. */
+@keyframes stamp-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.stamp-in {
+  animation: stamp-in 0.25s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .duty-dot,
+  .stamp-in {
+    animation: none;
+  }
+}
+
+/* Perforated left edge for slot tickets. */
+.ticket-edge {
+  background-image: radial-gradient(circle at 0 50%, var(--color-paper) 5px, transparent 5.5px);
+  background-size: 100% 18px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-clinic);
+  outline-offset: 2px;
+}

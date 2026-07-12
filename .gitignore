@@ -1,0 +1,21 @@
+# deps / build
+node_modules
+.next
+out
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# local data (sqlite lives in ./data during dev)
+data
+*.db
+*.db-shm
+*.db-wal
+
+# secrets — never commit credentials
+.env
+.env.local
+.env*.local
+
+# misc
+npm-debug.log*
+.DS_Store
