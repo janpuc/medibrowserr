@@ -2,7 +2,12 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/server/db";
 
-/** Everything configurable from the Settings page, stored as one kv row each. */
+export interface IdValue {
+  id: string;
+  value: string;
+}
+
+/** Everything configurable from the Settings page, stored as one kv row. */
 export interface AppSettings {
   medicoverUser: string;
   medicoverPass: string;
@@ -13,8 +18,10 @@ export interface AppSettings {
   defaultLanguage: "pl" | "en";
   /** Default polling interval for new monitors, minutes. */
   defaultIntervalMinutes: number;
-  /** Enrich doctor cards with znanylekarz.pl profile/photo lookups. */
-  znanylekarzEnabled: boolean;
+  /** Regions preselected in new monitors ("where do I live"). */
+  defaultRegions: IdValue[];
+  /** Clinics preselected in new monitors ("my usual clinics"). */
+  defaultClinics: IdValue[];
 }
 
 /** Persisted Medicover session — survives restarts so logins stay rare. */
@@ -38,8 +45,41 @@ const DEFAULTS: AppSettings = {
   pushoverDevice: "",
   defaultLanguage: "pl",
   defaultIntervalMinutes: 15,
-  znanylekarzEnabled: true,
+  defaultRegions: [],
+  defaultClinics: [],
 };
+
+const parseIdList = (raw: string): IdValue[] =>
+  raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    // Names get resolved against the live dictionary in the UI.
+    .map((id) => ({ id, value: id }));
+
+/**
+ * Settings coming from env vars. These OVERRIDE anything stored in the DB
+ * and show up grayed-out in the GUI (the `locked` list below).
+ */
+function envSettings(): Partial<AppSettings> {
+  const env: Partial<AppSettings> = {};
+  if (process.env.MEDICOVER_USER) env.medicoverUser = process.env.MEDICOVER_USER;
+  if (process.env.MEDICOVER_PASS) env.medicoverPass = process.env.MEDICOVER_PASS;
+  if (process.env.PUSHOVER_TOKEN) env.pushoverToken = process.env.PUSHOVER_TOKEN;
+  if (process.env.PUSHOVER_USER) env.pushoverUser = process.env.PUSHOVER_USER;
+  if (process.env.PUSHOVER_DEVICE) env.pushoverDevice = process.env.PUSHOVER_DEVICE;
+  const lang = process.env.MEDIBROWSERR_DEFAULT_LANGUAGE;
+  if (lang === "pl" || lang === "en") env.defaultLanguage = lang;
+  const interval = Number(process.env.MEDIBROWSERR_DEFAULT_INTERVAL);
+  if (Number.isFinite(interval) && interval >= 5) env.defaultIntervalMinutes = interval;
+  if (process.env.MEDIBROWSERR_DEFAULT_REGION_IDS) {
+    env.defaultRegions = parseIdList(process.env.MEDIBROWSERR_DEFAULT_REGION_IDS);
+  }
+  if (process.env.MEDIBROWSERR_DEFAULT_CLINIC_IDS) {
+    env.defaultClinics = parseIdList(process.env.MEDIBROWSERR_DEFAULT_CLINIC_IDS);
+  }
+  return env;
+}
 
 async function readKey<T>(key: string): Promise<T | undefined> {
   const db = await getDb();
@@ -66,22 +106,30 @@ export async function writeKey(key: string, value: unknown): Promise<void> {
     });
 }
 
-/** Env vars seed the store on first boot; values saved via the UI win. */
 export async function getSettings(): Promise<AppSettings> {
   const stored = (await readKey<Partial<AppSettings>>("app")) ?? {};
-  const envSeed: Partial<AppSettings> = {};
-  if (process.env.MEDICOVER_USER) envSeed.medicoverUser = process.env.MEDICOVER_USER;
-  if (process.env.MEDICOVER_PASS) envSeed.medicoverPass = process.env.MEDICOVER_PASS;
-  if (process.env.PUSHOVER_TOKEN) envSeed.pushoverToken = process.env.PUSHOVER_TOKEN;
-  if (process.env.PUSHOVER_USER) envSeed.pushoverUser = process.env.PUSHOVER_USER;
-  return { ...DEFAULTS, ...envSeed, ...stored };
+  return { ...DEFAULTS, ...stored, ...envSettings() };
+}
+
+/** Settings plus the list of keys pinned by env vars (read-only in the GUI). */
+export async function getSettingsWithMeta(): Promise<{
+  settings: AppSettings;
+  locked: (keyof AppSettings)[];
+}> {
+  return {
+    settings: await getSettings(),
+    locked: Object.keys(envSettings()) as (keyof AppSettings)[],
+  };
 }
 
 export async function saveSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
+  // Env-pinned keys are not editable.
+  for (const key of Object.keys(envSettings()) as (keyof AppSettings)[]) {
+    delete patch[key];
+  }
   const stored = (await readKey<Partial<AppSettings>>("app")) ?? {};
-  const merged = { ...stored, ...patch };
-  await writeKey("app", merged);
-  return { ...DEFAULTS, ...merged };
+  await writeKey("app", { ...stored, ...patch });
+  return getSettings();
 }
 
 export async function getMedicoverSession(): Promise<MedicoverSession> {

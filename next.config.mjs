@@ -11,15 +11,6 @@ const nextConfig = {
   },
   // libsql ships optional native bits; keep it external to the server bundle.
   serverExternalPackages: ["@libsql/client", "libsql"],
-  images: {
-    // Doctor photos come from znanylekarz/docplanner CDNs at display size
-    // already; skip server-side re-optimization (and the sharp dependency).
-    unoptimized: true,
-    remotePatterns: [
-      { protocol: "https", hostname: "**.docplanner.com" },
-      { protocol: "https", hostname: "**.znanylekarz.pl" },
-    ],
-  },
   async headers() {
     return [
       {

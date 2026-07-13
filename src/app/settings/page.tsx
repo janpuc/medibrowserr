@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Lock } from "lucide-react";
 import { api, usePoll, type MedicoverStatus } from "@/lib/client";
 import { Button, Card, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
 import { ConnectWizard } from "@/components/connect-wizard";
+import { MultiSelect, type Option } from "@/components/multi-select";
 
 interface Settings {
   medicoverUser: string;
@@ -13,30 +15,102 @@ interface Settings {
   pushoverDevice: string;
   defaultLanguage: "pl" | "en";
   defaultIntervalMinutes: number;
-  znanylekarzEnabled: boolean;
+  defaultRegions: Option[];
+  defaultClinics: Option[];
 }
+
+interface SettingsPayload {
+  settings: Settings;
+  locked: (keyof Settings)[];
+}
+
+interface Filters {
+  regions: Option[];
+  clinics: Option[];
+}
+
+/**
+ * Clinics in the dictionary are scoped to region+specialty. Internista (9)
+ * is offered at practically every center, so it doubles as a "list the
+ * clinics of this region" seed for the defaults picker.
+ */
+const CLINIC_SEED_SPECIALTY = "9";
 
 export default function SettingsPage() {
   const status = usePoll<MedicoverStatus>("/api/medicover/status", 15_000);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [locked, setLocked] = useState<(keyof Settings)[]>([]);
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [testBusy, setTestBusy] = useState(false);
+  const [dicts, setDicts] = useState<Filters | null>(null);
+  const [dictsLoading, setDictsLoading] = useState(false);
 
   useEffect(() => {
-    void api<Settings>("/api/settings").then(setSettings).catch(() => setSettings(null));
+    void api<SettingsPayload>("/api/settings")
+      .then((p) => {
+        setSettings(p.settings);
+        setLocked(p.locked);
+      })
+      .catch(() => setSettings(null));
   }, []);
+
+  const regionIds = useMemo(
+    () => settings?.defaultRegions.map((r) => r.id).join(",") ?? "",
+    [settings?.defaultRegions],
+  );
+
+  // Region/clinic dictionaries for the defaults pickers (needs a connection).
+  useEffect(() => {
+    if (status.data?.status !== "connected") return;
+    let cancelled = false;
+    setDictsLoading(true);
+    const params = new URLSearchParams({ type: "Standard" });
+    if (regionIds) {
+      params.set("regionIds", regionIds);
+      params.set("specialtyIds", CLINIC_SEED_SPECIALTY);
+    }
+    api<Filters>(`/api/medicover/filters?${params}`)
+      .then((f) => {
+        if (cancelled) return;
+        setDicts(f);
+        // Resolve id-only values (seeded via env vars) to display names.
+        setSettings((prev) =>
+          prev
+            ? {
+                ...prev,
+                defaultRegions: prev.defaultRegions.map(
+                  (r) => (r.value === r.id ? (f.regions.find((d) => d.id === r.id) ?? r) : r),
+                ),
+                defaultClinics: prev.defaultClinics.map(
+                  (c) => (c.value === c.id ? (f.clinics.find((d) => d.id === c.id) ?? c) : c),
+                ),
+              }
+            : prev,
+        );
+      })
+      .catch(() => {
+        /* pickers just stay empty */
+      })
+      .finally(() => {
+        if (!cancelled) setDictsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [status.data?.status, regionIds]);
 
   const save = async () => {
     if (!settings) return;
     setSaving(true);
     setFlash(null);
     try {
-      const saved = await api<Settings>("/api/settings", {
+      const saved = await api<SettingsPayload>("/api/settings", {
         method: "PUT",
         body: JSON.stringify(settings),
       });
-      setSettings(saved);
+      setSettings(saved.settings);
+      setLocked(saved.locked);
       setFlash("Settings saved.");
     } catch (err) {
       setFlash(err instanceof Error ? err.message : String(err));
@@ -73,12 +147,41 @@ export default function SettingsPage() {
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     setSettings({ ...settings, [key]: value });
+  const isLocked = (key: keyof Settings) => locked.includes(key);
+
+  /** Text input that grays out when the value is pinned by an env var. */
+  const LockableInput = ({
+    field,
+    type = "text",
+    placeholder,
+  }: {
+    field: keyof Settings & ("medicoverUser" | "medicoverPass" | "pushoverToken" | "pushoverUser" | "pushoverDevice");
+    type?: string;
+    placeholder?: string;
+  }) => (
+    <div className="relative">
+      <input
+        className={`${inputClass} ${isLocked(field) ? "cursor-not-allowed bg-paper text-ink-soft" : ""}`}
+        type={type}
+        value={settings[field]}
+        placeholder={placeholder}
+        disabled={isLocked(field)}
+        onChange={(e) => set(field, e.target.value)}
+      />
+      {isLocked(field) ? (
+        <Lock size={13} className="absolute top-1/2 right-3 -translate-y-1/2 text-ink-soft" />
+      ) : null}
+    </div>
+  );
+
+  const envHint = (key: keyof Settings, envVar: string) =>
+    isLocked(key) ? `Set via ${envVar} — remove the env var to edit here.` : undefined;
 
   return (
     <>
       <PageHeader
         title="Settings"
-        lead="Credentials stay in your own SQLite database on your own cluster."
+        lead="Credentials stay in your own SQLite database on your own cluster. Fields with a lock come from env vars."
       />
 
       <div className="space-y-6">
@@ -86,21 +189,20 @@ export default function SettingsPage() {
           <h2 className="mb-3 font-display text-lg font-semibold">Medicover</h2>
           <Card className="mb-3 space-y-4 p-5">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Card number / login">
-                <input
-                  className={inputClass}
-                  value={settings.medicoverUser}
-                  onChange={(e) => set("medicoverUser", e.target.value)}
-                  placeholder="e.g. 4612027"
-                />
+              <Field
+                label="Card number / login"
+                hint={envHint("medicoverUser", "MEDICOVER_USER")}
+              >
+                <LockableInput field="medicoverUser" placeholder="e.g. 4612027" />
               </Field>
-              <Field label="Password" hint="Shown as ••• once saved; type to replace.">
-                <input
-                  className={inputClass}
-                  type="password"
-                  value={settings.medicoverPass}
-                  onChange={(e) => set("medicoverPass", e.target.value)}
-                />
+              <Field
+                label="Password"
+                hint={
+                  envHint("medicoverPass", "MEDICOVER_PASS") ??
+                  "Shown as ••• once saved; type to replace."
+                }
+              >
+                <LockableInput field="medicoverPass" type="password" />
               </Field>
             </div>
           </Card>
@@ -111,27 +213,23 @@ export default function SettingsPage() {
           <h2 className="mb-3 font-display text-lg font-semibold">Pushover</h2>
           <Card className="space-y-4 p-5">
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Application token" hint="Create an app at pushover.net/apps.">
-                <input
-                  className={inputClass}
-                  type="password"
-                  value={settings.pushoverToken}
-                  onChange={(e) => set("pushoverToken", e.target.value)}
-                />
+              <Field
+                label="Application token"
+                hint={
+                  envHint("pushoverToken", "PUSHOVER_TOKEN") ??
+                  "Create an app at pushover.net/apps."
+                }
+              >
+                <LockableInput field="pushoverToken" type="password" />
               </Field>
-              <Field label="User key">
-                <input
-                  className={inputClass}
-                  value={settings.pushoverUser}
-                  onChange={(e) => set("pushoverUser", e.target.value)}
-                />
+              <Field label="User key" hint={envHint("pushoverUser", "PUSHOVER_USER")}>
+                <LockableInput field="pushoverUser" />
               </Field>
-              <Field label="Device (optional)" hint="Empty = all devices.">
-                <input
-                  className={inputClass}
-                  value={settings.pushoverDevice}
-                  onChange={(e) => set("pushoverDevice", e.target.value)}
-                />
+              <Field
+                label="Device (optional)"
+                hint={envHint("pushoverDevice", "PUSHOVER_DEVICE") ?? "Empty = all devices."}
+              >
+                <LockableInput field="pushoverDevice" />
               </Field>
             </div>
             <Button onClick={() => void testPushover()} disabled={testBusy}>
@@ -142,40 +240,83 @@ export default function SettingsPage() {
         </section>
 
         <section>
-          <h2 className="mb-3 font-display text-lg font-semibold">Defaults</h2>
-          <Card className="grid gap-4 p-5 sm:grid-cols-3">
-            <Field label="Message language" hint="Preselected for new monitors.">
-              <select
-                className={inputClass}
-                value={settings.defaultLanguage}
-                onChange={(e) => set("defaultLanguage", e.target.value as "pl" | "en")}
+          <h2 className="mb-3 font-display text-lg font-semibold">Search defaults</h2>
+          <p className="mb-3 max-w-xl text-sm text-ink-soft">
+            Preselected in every new monitor — set your city and usual clinics once,
+            then creating a monitor is just picking a specialty.
+          </p>
+          <Card className="space-y-4 p-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label="My regions"
+                hint={envHint("defaultRegions", "MEDIBROWSERR_DEFAULT_REGION_IDS")}
               >
-                <option value="pl">Polski</option>
-                <option value="en">English</option>
-              </select>
-            </Field>
-            <Field label="Sweep interval (minutes)">
-              <input
-                className={inputClass}
-                type="number"
-                min={5}
-                max={1440}
-                value={settings.defaultIntervalMinutes}
-                onChange={(e) =>
-                  set("defaultIntervalMinutes", Number(e.target.value) || 15)
+                <MultiSelect
+                  options={dicts?.regions ?? []}
+                  selected={settings.defaultRegions}
+                  onChange={(next) => set("defaultRegions", next)}
+                  placeholder={
+                    status.data?.status === "connected"
+                      ? "Pick regions"
+                      : "Connect Medicover to load regions"
+                  }
+                  disabled={isLocked("defaultRegions") || status.data?.status !== "connected"}
+                  loading={dictsLoading}
+                />
+              </Field>
+              <Field
+                label="My clinics"
+                hint={
+                  envHint("defaultClinics", "MEDIBROWSERR_DEFAULT_CLINIC_IDS") ??
+                  "Optional — narrows new monitors to these centers."
                 }
-              />
-            </Field>
-            <Field label="ZnanyLekarz lookups" hint="Doctor photos & ratings on tickets.">
-              <select
-                className={inputClass}
-                value={settings.znanylekarzEnabled ? "on" : "off"}
-                onChange={(e) => set("znanylekarzEnabled", e.target.value === "on")}
               >
-                <option value="on">Enabled</option>
-                <option value="off">Disabled</option>
-              </select>
-            </Field>
+                <MultiSelect
+                  options={dicts?.clinics ?? []}
+                  selected={settings.defaultClinics}
+                  onChange={(next) => set("defaultClinics", next)}
+                  placeholder={
+                    settings.defaultRegions.length ? "Any clinic" : "Pick regions first"
+                  }
+                  disabled={
+                    isLocked("defaultClinics") ||
+                    !settings.defaultRegions.length ||
+                    status.data?.status !== "connected"
+                  }
+                  loading={dictsLoading}
+                />
+              </Field>
+              <Field
+                label="Notification language"
+                hint={envHint("defaultLanguage", "MEDIBROWSERR_DEFAULT_LANGUAGE")}
+              >
+                <select
+                  className={inputClass}
+                  value={settings.defaultLanguage}
+                  disabled={isLocked("defaultLanguage")}
+                  onChange={(e) => set("defaultLanguage", e.target.value as "pl" | "en")}
+                >
+                  <option value="pl">Polski</option>
+                  <option value="en">English</option>
+                </select>
+              </Field>
+              <Field
+                label="Check interval (minutes)"
+                hint={envHint("defaultIntervalMinutes", "MEDIBROWSERR_DEFAULT_INTERVAL")}
+              >
+                <input
+                  className={inputClass}
+                  type="number"
+                  min={5}
+                  max={1440}
+                  value={settings.defaultIntervalMinutes}
+                  disabled={isLocked("defaultIntervalMinutes")}
+                  onChange={(e) =>
+                    set("defaultIntervalMinutes", Number(e.target.value) || 15)
+                  }
+                />
+              </Field>
+            </div>
           </Card>
         </section>
 

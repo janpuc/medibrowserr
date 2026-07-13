@@ -1,121 +1,217 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import {
+  BadgeCheck,
+  BadgePercent,
+  ChevronDown,
+  ChevronUp,
+  FileWarning,
+  Search,
+  Wallet,
+} from "lucide-react";
+import clsx from "clsx";
 import { api, usePoll } from "@/lib/client";
-import { Card, EmptyState, PageHeader, Spinner, inputClass } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, PageHeader, Spinner, inputClass } from "@/components/ui";
 
-type Json = Record<string, unknown>;
-
-interface ServiceHit {
-  id?: string;
-  serviceId?: string;
-  name?: string;
-  value?: string;
-  [k: string]: unknown;
+interface Plan {
+  id: string;
+  name: string;
+  companyName?: string;
 }
 
-/** Renders unknown-but-flat API payloads as tidy label/value rows. */
-function KeyValues({ data }: { data: Json }) {
-  const entries = Object.entries(data).filter(
-    ([, v]) => v !== null && v !== undefined && typeof v !== "object",
-  );
-  const nested = Object.entries(data).filter(
-    ([, v]) => v !== null && typeof v === "object",
-  );
+interface Service {
+  serviceId: string;
+  serviceName: string;
+  serviceCode?: string;
+  serviceDescription?: string | null;
+}
+
+interface ProductSummary {
+  referralRequired?: boolean;
+  discount?: number;
+  hasDiscount?: boolean;
+  hasValueLimit?: boolean;
+  valueLimit?: number;
+  valueUsedCount?: number;
+  hasVolumeLimit?: boolean;
+  volumeLimit?: number;
+  volumeUsedCount?: number;
+  remarks?: string[];
+  benefitPlanName?: string;
+  isFreeAsPartOfBenefit?: boolean;
+  fixedPayment?: number | null;
+  product?: { productName?: string };
+}
+
+interface Summary {
+  service?: Service;
+  productSummaries?: ProductSummary[];
+}
+
+function CoverageVerdict({ s }: { s: ProductSummary }) {
+  if (s.isFreeAsPartOfBenefit) {
+    return (
+      <Badge tone="found">
+        <BadgeCheck size={12} /> covered by plan
+      </Badge>
+    );
+  }
+  if (s.hasDiscount && s.discount) {
+    return (
+      <Badge tone="clinic">
+        <BadgePercent size={12} /> {s.discount}% discount
+      </Badge>
+    );
+  }
+  if (s.fixedPayment) {
+    return (
+      <Badge tone="amber">
+        <Wallet size={12} /> fixed price {s.fixedPayment} zł
+      </Badge>
+    );
+  }
+  return <Badge tone="amber">not included — payable</Badge>;
+}
+
+function SummaryDetails({ summary }: { summary: Summary }) {
+  const rows = summary.productSummaries ?? [];
+  if (!rows.length) {
+    return (
+      <p className="text-[13px] text-ink-soft">
+        Your plan has no product entry for this service — it would be paid out of pocket.
+      </p>
+    );
+  }
   return (
     <div className="space-y-3">
-      {entries.length ? (
-        <dl className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-          {entries.map(([k, v]) => (
-            <div key={k} className="flex justify-between gap-3 border-b border-line/60 py-1">
-              <dt className="text-[13px] text-ink-soft">{labelize(k)}</dt>
-              <dd className="text-right text-[13px] font-medium">{formatValue(v)}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-      {nested.map(([k, v]) => (
-        <div key={k}>
-          <h4 className="mb-1 font-mono text-[11px] uppercase tracking-wide text-ink-soft">
-            {labelize(k)}
-          </h4>
-          {Array.isArray(v) ? (
-            v.length === 0 ? (
-              <p className="text-[13px] text-ink-soft">—</p>
-            ) : (
-              <div className="space-y-2">
-                {v.map((item, i) =>
-                  item && typeof item === "object" ? (
-                    <Card key={i} className="p-3">
-                      <KeyValues data={item as Json} />
-                    </Card>
-                  ) : (
-                    <p key={i} className="text-[13px]">
-                      {formatValue(item)}
-                    </p>
-                  ),
-                )}
-              </div>
-            )
-          ) : (
-            <Card className="p-3">
-              <KeyValues data={v as Json} />
-            </Card>
-          )}
+      {rows.map((s, i) => (
+        <div key={i} className="rounded-lg bg-paper px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <CoverageVerdict s={s} />
+            {s.referralRequired ? (
+              <Badge tone="amber">
+                <FileWarning size={12} /> referral required
+              </Badge>
+            ) : null}
+            {s.hasVolumeLimit ? (
+              <Badge tone="neutral">
+                limit {s.volumeUsedCount ?? 0}/{s.volumeLimit} used
+              </Badge>
+            ) : null}
+            {s.hasValueLimit ? (
+              <Badge tone="neutral">
+                value limit {s.valueUsedCount ?? 0}/{s.valueLimit} zł
+              </Badge>
+            ) : null}
+          </div>
+          {s.product?.productName ? (
+            <p className="mt-2 text-[13px] text-ink-soft">
+              {s.product.productName}
+              {s.benefitPlanName ? ` · ${s.benefitPlanName}` : ""}
+            </p>
+          ) : null}
+          {s.remarks?.length ? (
+            <ul className="mt-1.5 list-inside list-disc text-[13px] text-ink-soft">
+              {s.remarks.map((r, j) => (
+                <li key={j}>{r}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ))}
+      {summary.service?.serviceDescription ? (
+        <p className="text-[13px] leading-relaxed text-ink-soft">
+          {summary.service.serviceDescription}
+        </p>
+      ) : null}
     </div>
   );
 }
 
-const labelize = (key: string) =>
-  key
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/[_-]/g, " ")
-    .replace(/^./, (c) => c.toUpperCase());
-
-const formatValue = (v: unknown): string => {
-  if (typeof v === "boolean") return v ? "Yes" : "No";
-  return String(v);
-};
-
-export default function CoveragePage() {
-  const plans = usePoll<Json[]>("/api/coverage");
-  const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<ServiceHit[] | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [summary, setSummary] = useState<Json | null>(null);
-  const [summaryFor, setSummaryFor] = useState<string | null>(null);
+function ServiceRow({ service }: { service: Service }) {
+  const [open, setOpen] = useState(false);
+  const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Debounced service search.
   useEffect(() => {
-    if (query.trim().length < 3) {
-      setHits(null);
-      return;
-    }
-    setSearching(true);
+    if (!open || summary || error) return;
+    api<Summary>(`/api/coverage?serviceId=${encodeURIComponent(service.serviceId)}`)
+      .then(setSummary)
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+  }, [open, summary, error, service.serviceId]);
+
+  return (
+    <li className="border-b border-line/60 last:border-b-0">
+      <button
+        className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-paper/60"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{service.serviceName}</span>
+          {service.serviceCode ? (
+            <span className="font-mono text-[11px] text-ink-soft">{service.serviceCode}</span>
+          ) : null}
+        </span>
+        {open ? (
+          <ChevronUp size={16} className="shrink-0 text-ink-soft" />
+        ) : (
+          <ChevronDown size={16} className="shrink-0 text-ink-soft" />
+        )}
+      </button>
+      {open ? (
+        <div className="px-4 pb-4">
+          {error ? (
+            <p className="text-[13px] text-alert">{error}</p>
+          ) : summary ? (
+            <SummaryDetails summary={summary} />
+          ) : (
+            <Spinner />
+          )}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+export default function CoveragePage() {
+  const plans = usePoll<Plan[]>("/api/coverage");
+  const [query, setQuery] = useState("");
+  const [items, setItems] = useState<Service[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Debounced catalog fetch; empty query browses everything A→Z.
+  useEffect(() => {
+    setLoading(true);
     const t = setTimeout(() => {
-      api<ServiceHit[]>(`/api/coverage?q=${encodeURIComponent(query.trim())}`)
+      api<{ items: Service[]; hasMore: boolean }>(
+        `/api/coverage?q=${encodeURIComponent(query.trim())}&page=1`,
+      )
         .then((r) => {
-          setHits(r);
+          setItems(r.items);
+          setHasMore(r.hasMore);
+          setPage(1);
           setError(null);
         })
         .catch((err) => setError(err instanceof Error ? err.message : String(err)))
-        .finally(() => setSearching(false));
-    }, 350);
+        .finally(() => setLoading(false));
+    }, 300);
     return () => clearTimeout(t);
   }, [query]);
 
-  const showSummary = async (hit: ServiceHit) => {
-    const id = String(hit.serviceId ?? hit.id ?? "");
-    if (!id) return;
-    setSummaryFor(String(hit.name ?? hit.value ?? id));
-    setSummary(null);
+  const loadMore = async () => {
+    const next = page + 1;
     try {
-      setSummary(await api<Json>(`/api/coverage?serviceId=${encodeURIComponent(id)}`));
-      setError(null);
+      const r = await api<{ items: Service[]; hasMore: boolean }>(
+        `/api/coverage?q=${encodeURIComponent(query.trim())}&page=${next}`,
+      );
+      setItems((prev) => [...prev, ...r.items]);
+      setHasMore(r.hasMore);
+      setPage(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -125,80 +221,66 @@ export default function CoveragePage() {
     <>
       <PageHeader
         title="Coverage"
-        lead="What your Medicover plan includes. Search any service to see whether it's covered, limited or discounted."
+        lead="Everything Medicover offers, checked against your plan — covered, limited, discounted or payable."
       />
 
-      <Card className="mb-6 p-5">
-        <div className="relative">
-          <Search size={16} className="absolute top-1/2 left-3 -translate-y-1/2 text-ink-soft" />
+      {plans.data?.length ? (
+        <div className="mb-6 flex flex-wrap gap-3">
+          {plans.data.map((plan) => (
+            <Card key={plan.id} className="px-5 py-3">
+              <p className="font-display text-[15px] font-semibold">{plan.name}</p>
+              {plan.companyName ? (
+                <p className="mt-0.5 text-xs text-ink-soft">via {plan.companyName}</p>
+              ) : null}
+            </Card>
+          ))}
+        </div>
+      ) : plans.error ? (
+        <Card className="mb-6 border-alert px-5 py-4 text-sm">
+          <p className="font-medium text-alert">Couldn&apos;t fetch your plan</p>
+          <p className="mt-0.5 text-ink-soft">
+            {plans.error} — make sure the Medicover account is connected in Settings.
+          </p>
+        </Card>
+      ) : null}
+
+      <Card>
+        <div className="relative border-b border-line">
+          <Search size={16} className="absolute top-1/2 left-4 -translate-y-1/2 text-ink-soft" />
           <input
-            className={`${inputClass} pl-9`}
-            placeholder="Search a service, e.g. rezonans, kardiolog, USG…"
+            className={clsx(inputClass, "rounded-b-none border-0 py-3 pl-11")}
+            placeholder="Search services — kardiolog, rezonans, USG… (empty = browse all)"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        {searching ? (
-          <div className="mt-4 flex justify-center">
+        {loading ? (
+          <div className="flex justify-center py-12">
             <Spinner />
           </div>
-        ) : hits ? (
-          hits.length === 0 ? (
-            <p className="mt-4 text-sm text-ink-soft">
-              No services match &quot;{query}&quot;.
-            </p>
-          ) : (
-            <ul className="mt-3 divide-y divide-line/60">
-              {hits.map((hit, i) => (
-                <li key={i}>
-                  <button
-                    className="w-full px-1 py-2 text-left text-sm hover:text-clinic-deep"
-                    onClick={() => void showSummary(hit)}
-                  >
-                    {String(hit.name ?? hit.value ?? JSON.stringify(hit))}
-                  </button>
-                </li>
+        ) : error ? (
+          <p className="px-4 py-6 text-sm text-alert">{error}</p>
+        ) : items.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-ink-soft">
+            No services match &quot;{query}&quot;.
+          </p>
+        ) : (
+          <>
+            <ul>
+              {items.map((service) => (
+                <ServiceRow key={`${service.serviceId}-${service.serviceCode}`} service={service} />
               ))}
             </ul>
-          )
-        ) : null}
+            {hasMore ? (
+              <div className="border-t border-line p-3 text-center">
+                <Button variant="ghost" onClick={() => void loadMore()}>
+                  Load more
+                </Button>
+              </div>
+            ) : null}
+          </>
+        )}
       </Card>
-
-      {error ? (
-        <Card className="mb-6 border-alert px-5 py-4 text-sm">
-          <p className="font-medium text-alert">Coverage lookup failed</p>
-          <p className="mt-0.5 text-ink-soft">{error}</p>
-        </Card>
-      ) : null}
-
-      {summaryFor ? (
-        <Card className="mb-6 p-5">
-          <h2 className="mb-3 font-display text-lg font-semibold">{summaryFor}</h2>
-          {summary ? <KeyValues data={summary} /> : <Spinner />}
-        </Card>
-      ) : null}
-
-      <h2 className="mb-3 font-display text-lg font-semibold">My plan</h2>
-      {plans.loading ? (
-        <div className="flex justify-center py-10">
-          <Spinner />
-        </div>
-      ) : plans.error ? (
-        <EmptyState
-          title="Plan unavailable"
-          body={`Couldn't fetch benefit plans: ${plans.error}. Make sure the Medicover account is connected in Settings.`}
-        />
-      ) : (plans.data?.length ?? 0) === 0 ? (
-        <EmptyState title="No plan data" body="Medicover returned no benefit plans for this account." />
-      ) : (
-        <div className="space-y-3">
-          {plans.data!.map((plan, i) => (
-            <Card key={i} className="p-5">
-              <KeyValues data={plan} />
-            </Card>
-          ))}
-        </div>
-      )}
     </>
   );
 }

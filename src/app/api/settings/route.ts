@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { apiError } from "@/lib/api";
-import { getSettings, saveSettings } from "@/server/settings";
+import {
+  getSettingsWithMeta,
+  saveSettings,
+  type AppSettings,
+} from "@/server/settings";
+
+const idValue = z.object({ id: z.string(), value: z.string() });
 
 const patchSchema = z.object({
   medicoverUser: z.string().optional(),
@@ -11,10 +17,11 @@ const patchSchema = z.object({
   pushoverDevice: z.string().optional(),
   defaultLanguage: z.enum(["pl", "en"]).optional(),
   defaultIntervalMinutes: z.number().int().min(5).max(24 * 60).optional(),
-  znanylekarzEnabled: z.boolean().optional(),
+  defaultRegions: z.array(idValue).optional(),
+  defaultClinics: z.array(idValue).optional(),
 });
 
-function redact(settings: Awaited<ReturnType<typeof getSettings>>) {
+function redact(settings: AppSettings) {
   return {
     ...settings,
     medicoverPass: settings.medicoverPass ? "•••" : "",
@@ -24,7 +31,8 @@ function redact(settings: Awaited<ReturnType<typeof getSettings>>) {
 
 export async function GET() {
   try {
-    return NextResponse.json(redact(await getSettings()));
+    const { settings, locked } = await getSettingsWithMeta();
+    return NextResponse.json({ settings: redact(settings), locked });
   } catch (err) {
     return apiError(err);
   }
@@ -36,8 +44,9 @@ export async function PUT(req: Request) {
     // "•••" placeholders coming back from the form mean "unchanged".
     if (patch.medicoverPass === "•••") delete patch.medicoverPass;
     if (patch.pushoverToken === "•••") delete patch.pushoverToken;
-    const saved = await saveSettings(patch);
-    return NextResponse.json(redact(saved));
+    await saveSettings(patch);
+    const { settings, locked } = await getSettingsWithMeta();
+    return NextResponse.json({ settings: redact(settings), locked });
   } catch (err) {
     return apiError(err);
   }

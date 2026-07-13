@@ -91,7 +91,7 @@ export const notifications = sqliteTable("notifications", {
   error: text("error"),
 });
 
-/** Small cache for external lookups (Medicover dictionaries, znanylekarz). */
+/** Small cache for external lookups (Medicover dictionaries). */
 export const dictCache = sqliteTable("dict_cache", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),

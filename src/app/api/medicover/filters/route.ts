@@ -5,8 +5,10 @@ import { getFilters } from "@/server/medicover/client";
 const parseIdList = (value: string | null): number[] =>
   (value ?? "")
     .split(",")
-    .map((s) => Number(s.trim()))
-    .filter(Number.isFinite);
+    .map((s) => s.trim())
+    .filter(Boolean) // "" would otherwise become 0 and confuse the gateway
+    .map(Number)
+    .filter((n) => Number.isFinite(n) && n > 0);
 
 /**
  * GET /api/medicover/filters?regionIds=204,202&specialtyIds=132&type=Standard

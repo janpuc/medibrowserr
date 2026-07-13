@@ -12,8 +12,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Architecture
 
 Next.js 16 App Router app, SQLite via `@libsql/client` + Drizzle, deployed as a
-single container (see `Dockerfile`, `deploy/k8s/`). One replica only: SQLite on
-an RWO volume plus an in-process scheduler.
+single container (see `Dockerfile`; mount `/data`). One replica only: SQLite on
+an RWO volume plus an in-process scheduler. Deployment is deliberately
+unopinionated — no bundled manifests; the README documents the contract.
 
 The flow that ties everything together:
 
@@ -30,7 +31,12 @@ The flow that ties everything together:
    person appointments, personal data, and benefit-plans (coverage). Multi-region
    searches run one request per region and merge; extra refinements (end date,
    hour window, doctor-name substring) are applied client-side in
-   `src/server/medicover/slots.ts` (pure, unit-tested).
+   `src/server/medicover/slots.ts` (pure, unit-tested). Gateway quirks (verified
+   live): the filters endpoint 409s (CIS_ERROR) without `RegionIds` — the full
+   regions list is fetched with a seed region; clinics/doctors only populate
+   when `SpecialtyIds` is also present; benefit-plans responses wrap in
+   `{result: [...]}`; the services autocomplete with an empty `QueryString`
+   pages through the entire catalog. No public OpenAPI spec exists (404s).
 3. **Monitors** (`src/server/monitors/`) — `engine.ts` runs one monitor: search
    → dedupe against `found_slots` (sha1 of date+doctor+clinic+specialty per
    monitor) → Pushover notify (templates in `src/server/notify/messages.ts`,
@@ -41,8 +47,10 @@ The flow that ties everything together:
    keep `schema.ts` and the `BOOTSTRAP` DDL in `index.ts` in sync when changing tables.
 5. **UI** — client components fetching the `/api/*` routes via `usePoll`
    (`src/lib/client.ts`). Design tokens live in `src/app/globals.css`
-   (Tailwind v4 `@theme`): clinic blue / found green / paper palette,
-   Bricolage Grotesque display + IBM Plex Sans/Mono.
+   (Tailwind v4 `@theme`): clinic blue / found green / paper palette, Geist +
+   Geist Mono. Settings values pinned by env vars come back in the `locked`
+   array from `/api/settings` and render disabled in the GUI (env wins over DB;
+   see `envSettings()` in `src/server/settings.ts`).
 
 Modules importing `server-only` can't be imported by vitest — keep pure logic
 in dedicated files (like `slots.ts`, `html.ts`, `cookiejar.ts`) to test it.

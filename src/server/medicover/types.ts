@@ -1,4 +1,4 @@
-/** Shapes returned by the api-gateway-online24 endpoints (v2). */
+/** Shapes returned by the api-gateway-online24 endpoints (v2), as observed live. */
 
 export interface IdName {
   id: string;
@@ -67,13 +67,48 @@ export interface PersonAppointment {
   state?: string;
 }
 
-/** Benefit-plan payloads are rendered defensively; shapes vary per contract. */
-export type BenefitPlan = Record<string, unknown>;
+// --- coverage ---------------------------------------------------------------
+
+export interface BenefitPlan {
+  id: string;
+  name: string;
+  companyName?: string;
+}
 
 export interface CoverageService {
-  id?: string;
-  serviceId?: string;
-  name?: string;
-  value?: string;
-  [k: string]: unknown;
+  serviceId: string;
+  serviceName: string;
+  serviceCode?: string;
+  serviceDescription?: string | null;
+}
+
+export interface CoverageServicePage {
+  items: CoverageService[];
+  page: number;
+  /** True when another page likely exists (a full page came back). */
+  hasMore: boolean;
+}
+
+/** One row of "how does my plan treat this service". */
+export interface ProductSummary {
+  referralRequired?: boolean;
+  discount?: number;
+  hasDiscount?: boolean;
+  hasValueLimit?: boolean;
+  valueLimit?: number;
+  valueUsedCount?: number;
+  hasVolumeLimit?: boolean;
+  volumeLimit?: number;
+  volumeUsedCount?: number;
+  remarks?: string[];
+  benefitPlanName?: string;
+  benefitPlanCompany?: string;
+  isFreeAsPartOfBenefit?: boolean;
+  fixedPayment?: number | null;
+  product?: { productId?: number; productName?: string; benefitPlanId?: number };
+}
+
+export interface CoverageSummary {
+  service?: CoverageService;
+  productSummaries?: ProductSummary[];
 }

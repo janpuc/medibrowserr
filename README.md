@@ -6,32 +6,29 @@ finds in SQLite, and pings you on **Pushover** the moment something new
 appears — with default messages in Polish or English, your pick per monitor.
 
 Inspired by [medihunter](https://github.com/apqlzm/medihunter), rebuilt as a
-proper web app for a Kubernetes homelab.
+proper web app for self-hosting.
 
 ## Features
 
 - **Monitors** — saved searches that run on an interval (default 15 min):
-  - one or more **regions**, one or more **specialties**
-  - one or more **clinics** (or all in the region)
-  - specific **doctors** picked from the live dictionary, or a free-text
-    "doctor name contains" filter
-  - date range, hour-of-day window, doctor language, consultation vs
-    diagnostic procedure
+  pick a specialty and go; regions, clinics, interval and language come from
+  your configured defaults. Narrow to specific clinics, doctors from the live
+  dictionary or a "doctor name contains" filter, date/hour windows, doctor
+  language, consultation vs diagnostic. **Preview results** before saving.
 - **Pushover notifications** with sensible default messages (PL/EN chosen when
   you create the monitor), priority per monitor, test button in Settings.
-- **Coverage checker** — searches your Medicover benefit plan and shows
-  whether a service is covered, limited or discounted.
+- **Coverage checker** — browse or search the full Medicover service catalog
+  and see how *your* plan treats each service: covered, referral required,
+  volume/value limits (with usage), discount or payable.
 - **Appointments** — every caught slot as a waiting-room ticket, plus your
-  actually-booked visits from Medicover.
-- **ZnanyLekarz enrichment** — best-effort doctor photo, rating and profile
-  link on each ticket (can be disabled in Settings).
+  booked visits from Medicover.
 - **SQLite** storage, single container, no external services.
 
 ## How login works (read this once)
 
 Medicover's online24 login is OIDC with PKCE, driven server-side by the app.
-Since 2025 Medicover **requires an MFA method on every account**. The first
-time you connect:
+Medicover **requires an MFA method on every account**. The first time you
+connect:
 
 1. Enter card number + password in **Settings** (or seed via env vars).
 2. Click **Connect**. If your account has no MFA method yet, the app walks
@@ -44,38 +41,57 @@ If Medicover ever demands a new code (e.g. token revoked), monitors pause,
 you get a Pushover "action required" ping, and the Settings page shows the
 code prompt again.
 
-## Quick start (docker compose)
+## Running it
 
 ```bash
 docker compose up -d
 # open http://localhost:3000 → Settings → connect Medicover + Pushover
 ```
 
-## Kubernetes
-
-Manifests live in [`deploy/k8s`](deploy/k8s): PVC + single-replica
-Deployment (Recreate strategy — SQLite on RWO storage) + Service, optional
-Ingress example and Secret template.
+Or with plain `docker run` / any orchestrator — the image is unopinionated:
 
 ```bash
-kubectl apply -k deploy/k8s
+docker run -d -p 3000:3000 -v medibrowserr-data:/data \
+  ghcr.io/janpuc/medibrowserr:latest
 ```
 
+What the container needs:
+
+| Mount / port | Purpose |
+| --- | --- |
+| `/data` (volume, **required**) | SQLite database: settings, Medicover session (tokens + trusted device), monitors, caught slots. Lose it and you redo the MFA dance. |
+| `3000/tcp` | HTTP. Health endpoint: `GET /api/health`. |
+
+There is no cache directory — fonts and assets are baked into the image at
+build time, and dictionaries are fetched live.
+
+Run **exactly one instance** per database: SQLite plus the in-process
+scheduler don't share. On Kubernetes that means `replicas: 1` with a
+`Recreate` strategy and a ReadWriteOnce PVC mounted at `/data`.
+
 > **Security note:** the app has no built-in authentication. Keep it on an
-> internal network, or put basic-auth / an auth proxy in front of the
-> Ingress. Your Medicover password and tokens live in the SQLite database on
-> the PVC.
+> internal network, or put basic-auth / an auth proxy in front of it. Your
+> Medicover password and tokens live in the SQLite database.
 
 ## Configuration
 
-| Env var | Purpose | Default |
-| --- | --- | --- |
-| `DATABASE_URL` | SQLite location (`sqlite://` or `file:` URL) | `sqlite:///data/medibrowserr.db` (image) |
-| `MEDICOVER_USER` / `MEDICOVER_PASS` | Seed Medicover login on first boot | — |
-| `PUSHOVER_TOKEN` / `PUSHOVER_USER` | Seed Pushover credentials | — |
-| `TZ` | Timezone for schedules/dates | `Europe/Warsaw` (image) |
+Everything is configurable in the Settings page. Env vars are optional
+overrides — a value set via env **wins over the GUI and shows up locked**
+(grayed out) there:
 
-Everything is also editable in the UI; UI values win over env seeds.
+| Env var | Purpose |
+| --- | --- |
+| `DATABASE_URL` | SQLite location (`sqlite://` or `file:` URL). Image default: `sqlite:///data/medibrowserr.db` |
+| `MEDICOVER_USER` / `MEDICOVER_PASS` | Medicover card number / password |
+| `PUSHOVER_TOKEN` / `PUSHOVER_USER` / `PUSHOVER_DEVICE` | Pushover app token / user key / device |
+| `MEDIBROWSERR_DEFAULT_REGION_IDS` | Regions preselected in new monitors, comma-separated ids (e.g. `202` = Kraków) |
+| `MEDIBROWSERR_DEFAULT_CLINIC_IDS` | Clinics preselected in new monitors, comma-separated ids |
+| `MEDIBROWSERR_DEFAULT_LANGUAGE` | Default notification language, `pl` or `en` |
+| `MEDIBROWSERR_DEFAULT_INTERVAL` | Default sweep interval in minutes |
+| `TZ` | Timezone for schedules/dates. Image default: `Europe/Warsaw` |
+
+Region/clinic ids are visible in the Settings pickers (or via
+`GET /api/medicover/filters`).
 
 ## Development
 

@@ -1,21 +1,15 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 
-const bricolage = Bricolage_Grotesque({
+const geist = Geist({
   subsets: ["latin", "latin-ext"],
-  variable: "--font-bricolage",
+  variable: "--font-geist",
 });
-const plex = IBM_Plex_Sans({
+const geistMono = Geist_Mono({
   subsets: ["latin", "latin-ext"],
-  weight: ["400", "500", "600"],
-  variable: "--font-plex",
-});
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin", "latin-ext"],
-  weight: ["400", "500"],
-  variable: "--font-plex-mono",
+  variable: "--font-geist-mono",
 });
 
 export const metadata: Metadata = {
@@ -26,7 +20,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${bricolage.variable} ${plex.variable} ${plexMono.variable}`}>
+    <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
       <body className="min-h-screen">
         <div className="flex min-h-screen">
           <Nav />

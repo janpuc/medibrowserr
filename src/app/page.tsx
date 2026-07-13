@@ -88,15 +88,25 @@ export default function DashboardPage() {
       ) : null}
 
       {/* Departures-board status strip */}
-      <div className="mb-6 rounded-xl border border-line bg-ink px-5 py-3 font-mono text-[13px] text-white/90">
-        <span className="text-found">{active.length}</span> monitor
-        {active.length === 1 ? "" : "s"} on duty
-        <span className="mx-3 text-white/30">·</span>
-        last sweep{" "}
-        <span className="text-white">{lastSweep ? timeAgo(lastSweep) : "—"}</span>
-        <span className="mx-3 text-white/30">·</span>
-        <span className="text-white">{caught}</span> slot{caught === 1 ? "" : "s"} on the
-        board
+      <div className="mb-6 flex flex-wrap items-center gap-x-3 rounded-xl border border-line bg-ink px-5 py-3 font-mono text-[13px] text-white/90">
+        <span>
+          <span className="text-found">{active.length}</span> monitor
+          {active.length === 1 ? "" : "s"} on duty
+        </span>
+        <span className="text-white/30">·</span>
+        <span>
+          last sweep <span className="text-white">{lastSweep ? timeAgo(lastSweep) : "—"}</span>
+        </span>
+        <span className="text-white/30">·</span>
+        <span>
+          <span className="text-white">{caught}</span> slot{caught === 1 ? "" : "s"} on the board
+        </span>
+        {status.data?.profile?.firstName ? (
+          <span className="ml-auto text-white/60">
+            {status.data.profile.firstName} {status.data.profile.lastName ?? ""} · MRN{" "}
+            {status.data.profile.mrn}
+          </span>
+        ) : null}
       </div>
 
       {runResult ? (

@@ -9,8 +9,8 @@ import {
 /**
  * Coverage ("is this covered by my plan?"):
  *  - GET /api/coverage                     → my benefit plans
- *  - GET /api/coverage?q=kardiolog         → service autocomplete
- *  - GET /api/coverage?serviceId=123       → coverage summary for a service
+ *  - GET /api/coverage?q=kardiolog&page=1  → service catalog page (q may be empty)
+ *  - GET /api/coverage?serviceId=618       → coverage summary for a service
  */
 export async function GET(req: Request) {
   try {
@@ -21,7 +21,8 @@ export async function GET(req: Request) {
       return NextResponse.json(await getCoverageSummary(serviceId));
     }
     if (q !== null) {
-      return NextResponse.json(await searchCoveredServices(q));
+      const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1);
+      return NextResponse.json(await searchCoveredServices(q, page));
     }
     return NextResponse.json(await getBenefitPlans());
   } catch (err) {

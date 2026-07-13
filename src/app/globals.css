@@ -18,9 +18,9 @@
   --color-amber: #9a6b15;
   --color-amber-wash: #f8f1e2;
 
-  --font-display: var(--font-bricolage), system-ui, sans-serif;
-  --font-sans: var(--font-plex), system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --font-display: var(--font-geist), system-ui, sans-serif;
+  --font-sans: var(--font-geist), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
   --shadow-card: 0 1px 2px rgb(18 40 62 / 0.05), 0 4px 16px -8px rgb(18 40 62 / 0.08);
 }
