@@ -22,6 +22,8 @@ export interface AppSettings {
   defaultRegions: IdValue[];
   /** Clinics preselected in new monitors ("my usual clinics"). */
   defaultClinics: IdValue[];
+  /** Public URL of this app — notification links point here when set. */
+  appUrl: string;
 }
 
 /** Persisted Medicover session — survives restarts so logins stay rare. */
@@ -47,6 +49,7 @@ const DEFAULTS: AppSettings = {
   defaultIntervalMinutes: 15,
   defaultRegions: [],
   defaultClinics: [],
+  appUrl: "",
 };
 
 const parseIdList = (raw: string): IdValue[] =>
@@ -77,6 +80,9 @@ function envSettings(): Partial<AppSettings> {
   }
   if (process.env.MEDIBROWSERR_DEFAULT_CLINIC_IDS) {
     env.defaultClinics = parseIdList(process.env.MEDIBROWSERR_DEFAULT_CLINIC_IDS);
+  }
+  if (process.env.MEDIBROWSERR_URL) {
+    env.appUrl = process.env.MEDIBROWSERR_URL.replace(/\/+$/, "");
   }
   return env;
 }

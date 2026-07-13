@@ -1,16 +1,30 @@
 import "server-only";
 import crypto from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/server/db";
 import { MfaInteractionRequired } from "@/server/medicover/auth";
 import { searchSlots } from "@/server/medicover/client";
-import { applyDoctorNameFilter } from "@/server/medicover/slots";
+import {
+  applyDoctorNameFilter,
+  nowWarsawIso,
+  splitGoneCandidates,
+} from "@/server/medicover/slots";
 import type { Slot, SlotSearchParams } from "@/server/medicover/types";
-import { buildNotification, SYSTEM_MESSAGES, type MessageLanguage } from "@/server/notify/messages";
+import {
+  buildGoneNotification,
+  buildNotification,
+  SYSTEM_MESSAGES,
+  type MessageLanguage,
+} from "@/server/notify/messages";
 import { sendPushover } from "@/server/notify/pushover";
-import { getMedicoverSession, saveMedicoverSession } from "@/server/settings";
+import {
+  getMedicoverSession,
+  getSettings,
+  saveMedicoverSession,
+} from "@/server/settings";
 
 export type MonitorRow = typeof schema.monitors.$inferSelect;
+type FoundSlotRow = typeof schema.foundSlots.$inferSelect;
 
 export function dedupeKey(slot: Slot): string {
   return crypto
@@ -46,28 +60,67 @@ export function monitorSearchParams(monitor: MonitorRow): SlotSearchParams {
   };
 }
 
+/** Notification links point at this app when its URL is configured. */
+async function notificationLink(lang: MessageLanguage): Promise<{ url: string; urlTitle: string }> {
+  const { appUrl } = await getSettings();
+  if (appUrl) {
+    return {
+      url: `${appUrl}/appointments`,
+      urlTitle: lang === "pl" ? "Otwórz medibrowserr" : "Open medibrowserr",
+    };
+  }
+  return {
+    url: "https://online24.medicover.pl/home",
+    urlTitle: lang === "pl" ? "Otwórz Medicover OnLine" : "Open Medicover OnLine",
+  };
+}
+
+const rowToSlot = (row: FoundSlotRow): Slot => ({
+  appointmentDate: row.appointmentDate,
+  doctor: row.doctorName ? { id: row.doctorId ?? "", name: row.doctorName } : null,
+  clinic: { id: row.clinicId ?? "", name: row.clinicName ?? "" },
+  specialty: { id: row.specialtyId ?? "", name: row.specialtyName ?? "" },
+  visitType: row.visitType ?? undefined,
+});
 
 export interface RunResult {
   found: number;
   newSlots: Slot[];
+  goneSlots: Slot[];
   notified: boolean;
 }
 
-/** Runs one monitor: search → dedupe against history → notify new finds. */
+/**
+ * Runs one monitor sweep. Notification contract:
+ *  - brand-new slots (incl. ones that came BACK after being taken) → alert;
+ *  - slots seen before and still present → silence;
+ *  - future slots that vanished → someone took them → one-step-lower-priority
+ *    alert; past-dated ones just expire silently.
+ */
 export async function runMonitor(monitor: MonitorRow): Promise<RunResult> {
   const db = await getDb();
   const now = Date.now();
+  const lang = (monitor.messageLanguage === "en" ? "en" : "pl") as MessageLanguage;
   try {
     const slots = applyDoctorNameFilter(
       await searchSlots(monitorSearchParams(monitor)),
       monitor.doctorNameFilter,
     );
+    const currentKeys = new Set(slots.map(dedupeKey));
+
+    // Snapshot of what we believed was still bookable before this sweep.
+    const activeRows = await db
+      .select()
+      .from(schema.foundSlots)
+      .where(
+        and(eq(schema.foundSlots.monitorId, monitor.id), isNull(schema.foundSlots.goneAt)),
+      );
 
     const newSlots: Slot[] = [];
     for (const slot of slots) {
       const key = dedupeKey(slot);
-      const existing = await db
-        .select({ id: schema.foundSlots.id })
+      const [existing] = await db
+        .select()
         .from(schema.foundSlots)
         .where(
           and(
@@ -75,12 +128,7 @@ export async function runMonitor(monitor: MonitorRow): Promise<RunResult> {
             eq(schema.foundSlots.dedupeKey, key),
           ),
         );
-      if (existing.length) {
-        await db
-          .update(schema.foundSlots)
-          .set({ lastSeenAt: now })
-          .where(eq(schema.foundSlots.id, existing[0].id));
-      } else {
+      if (!existing) {
         newSlots.push(slot);
         await db.insert(schema.foundSlots).values({
           monitorId: monitor.id,
@@ -96,12 +144,40 @@ export async function runMonitor(monitor: MonitorRow): Promise<RunResult> {
           firstSeenAt: now,
           lastSeenAt: now,
         });
+      } else if (existing.goneAt) {
+        // The slot came back (a cancellation?) — that's news again.
+        newSlots.push(slot);
+        await db
+          .update(schema.foundSlots)
+          .set({ goneAt: null, goneReason: null, lastSeenAt: now, notifiedAt: null })
+          .where(eq(schema.foundSlots.id, existing.id));
+      } else {
+        await db
+          .update(schema.foundSlots)
+          .set({ lastSeenAt: now })
+          .where(eq(schema.foundSlots.id, existing.id));
       }
     }
 
+    // Slots that vanished since the last sweep.
+    const { taken, expired } = splitGoneCandidates(activeRows, currentKeys, nowWarsawIso());
+    for (const row of expired) {
+      await db
+        .update(schema.foundSlots)
+        .set({ goneAt: now, goneReason: "expired" })
+        .where(eq(schema.foundSlots.id, row.id));
+    }
+    for (const row of taken) {
+      await db
+        .update(schema.foundSlots)
+        .set({ goneAt: now, goneReason: "taken" })
+        .where(eq(schema.foundSlots.id, row.id));
+    }
+
+    const link = await notificationLink(lang);
     let notified = false;
+
     if (newSlots.length) {
-      const lang = (monitor.messageLanguage === "en" ? "en" : "pl") as MessageLanguage;
       const { title, message } = buildNotification(
         monitor.name,
         newSlots[0]?.specialty?.name,
@@ -113,8 +189,7 @@ export async function runMonitor(monitor: MonitorRow): Promise<RunResult> {
         message,
         priority: monitor.pushoverPriority,
         monitorId: monitor.id,
-        url: "https://online24.medicover.pl/home",
-        urlTitle: lang === "pl" ? "Otwórz Medicover OnLine" : "Open Medicover OnLine",
+        ...link,
       });
       notified = result.ok;
       if (result.ok) {
@@ -132,6 +207,22 @@ export async function runMonitor(monitor: MonitorRow): Promise<RunResult> {
       }
     }
 
+    if (taken.length) {
+      const { title, message } = buildGoneNotification(
+        monitor.name,
+        taken.map(rowToSlot),
+        lang,
+      );
+      await sendPushover({
+        title,
+        message,
+        // One step quieter than the monitor's own alerts.
+        priority: Math.max(monitor.pushoverPriority - 1, -2),
+        monitorId: monitor.id,
+        ...link,
+      });
+    }
+
     await db
       .update(schema.monitors)
       .set({
@@ -143,7 +234,7 @@ export async function runMonitor(monitor: MonitorRow): Promise<RunResult> {
       })
       .where(eq(schema.monitors.id, monitor.id));
 
-    return { found: slots.length, newSlots, notified };
+    return { found: slots.length, newSlots, goneSlots: taken.map(rowToSlot), notified };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await db
@@ -158,7 +249,7 @@ export async function runMonitor(monitor: MonitorRow): Promise<RunResult> {
       .where(eq(schema.monitors.id, monitor.id));
 
     if (err instanceof MfaInteractionRequired) {
-      await notifyActionRequiredOnce(monitor.messageLanguage as MessageLanguage);
+      await notifyActionRequiredOnce(lang);
     }
     throw err;
   }
@@ -169,7 +260,15 @@ async function notifyActionRequiredOnce(lang: MessageLanguage): Promise<void> {
   const session = await getMedicoverSession();
   if (session.statusDetail?.includes("[notified]")) return;
   const msg = SYSTEM_MESSAGES[lang === "en" ? "en" : "pl"];
-  await sendPushover({ title: msg.actionRequiredTitle, message: msg.actionRequiredBody, priority: 1 });
+  const { appUrl } = await getSettings();
+  await sendPushover({
+    title: msg.actionRequiredTitle,
+    message: msg.actionRequiredBody,
+    priority: 1,
+    ...(appUrl
+      ? { url: `${appUrl}/settings`, urlTitle: lang === "pl" ? "Otwórz ustawienia" : "Open settings" }
+      : {}),
+  });
   await saveMedicoverSession({
     statusDetail: `${session.statusDetail ?? "MFA required"} [notified]`,
   });

@@ -193,9 +193,11 @@ export default function CoveragePage() {
   const [data, setData] = useState<IndexResponse | null>(null);
   const [items, setItems] = useState<IndexItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const seedRunning = data?.seed.state === "running";
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const fetchPage = useCallback(
     async (page: number, append = false) => {
@@ -247,6 +249,33 @@ export default function CoveragePage() {
   const counts = data?.counts;
   const seed = data?.seed;
   const indexEmpty = (counts?.all ?? 0) === 0;
+  const activeCount =
+    filter === "inplan"
+      ? (counts?.inplan ?? 0)
+      : filter === "discount"
+        ? (counts?.discount ?? 0)
+        : filter === "payable"
+          ? (counts?.payable ?? 0)
+          : (counts?.all ?? 0);
+  const hasMore = items.length < activeCount;
+
+  // Lazy loading: fetch the next page whenever the sentinel scrolls into view.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasMore || loading) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0].isIntersecting || loadingMore) return;
+        setLoadingMore(true);
+        void fetchPage((data?.page ?? 1) + 1, true)
+          .catch(() => {})
+          .finally(() => setLoadingMore(false));
+      },
+      { rootMargin: "600px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore, data?.page, fetchPage]);
 
   const chips: { key: Filter; label: string; count?: number }[] = [
     { key: "inplan", label: "In my plan", count: counts?.inplan },
@@ -381,14 +410,9 @@ export default function CoveragePage() {
                 <ServiceRow key={item.serviceId} item={item} />
               ))}
             </ul>
-            {data && items.length < (counts?.[filter === "inplan" ? "inplan" : filter === "discount" ? "discount" : filter === "payable" ? "payable" : "all"] ?? 0) ? (
-              <div className="border-t border-line p-3 text-center">
-                <Button
-                  variant="ghost"
-                  onClick={() => void fetchPage((data?.page ?? 1) + 1, true)}
-                >
-                  Load more
-                </Button>
+            {hasMore ? (
+              <div ref={sentinelRef} className="flex justify-center border-t border-line p-4">
+                <Spinner />
               </div>
             ) : null}
           </>

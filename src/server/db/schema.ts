@@ -76,6 +76,10 @@ export const foundSlots = sqliteTable(
     firstSeenAt: integer("first_seen_at").notNull(),
     lastSeenAt: integer("last_seen_at").notNull(),
     notifiedAt: integer("notified_at"),
+    /** Set when the slot vanished from results; null = still bookable. */
+    goneAt: integer("gone_at"),
+    /** "taken" (future slot disappeared) | "expired" (date passed / scope changed). */
+    goneReason: text("gone_reason"),
   },
   (t) => [uniqueIndex("found_slots_monitor_dedupe").on(t.monitorId, t.dedupeKey)],
 );

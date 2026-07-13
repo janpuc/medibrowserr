@@ -66,6 +66,44 @@ export function buildNotification(
   };
 }
 
+/**
+ * Sent when previously-found future slots vanish from the results — someone
+ * booked them. Delivered one priority step lower than the monitor's alerts.
+ */
+export function buildGoneNotification(
+  monitorName: string,
+  slots: Slot[],
+  lang: MessageLanguage,
+): { title: string; message: string } {
+  const shown = slots.slice(0, 6);
+  const more = slots.length - shown.length;
+  const lines = shown.map((s) => slotLine(s, lang)).join("\n\n");
+
+  if (lang === "pl") {
+    const count =
+      slots.length === 1
+        ? "termin zniknął"
+        : slots.length < 5
+          ? `${slots.length} terminy zniknęły`
+          : `${slots.length} terminów zniknęło`;
+    return {
+      title: `📉 ${monitorName}: ${count}`,
+      message:
+        lines +
+        (more > 0 ? `\n\n…i jeszcze ${more} innych.` : "") +
+        `\n\nKtoś był szybszy — te terminy są już zajęte.`,
+    };
+  }
+  const count = slots.length === 1 ? "slot is gone" : `${slots.length} slots are gone`;
+  return {
+    title: `📉 ${monitorName}: ${count}`,
+    message:
+      lines +
+      (more > 0 ? `\n\n…and ${more} more.` : "") +
+      `\n\nSomeone was quicker — these slots are already taken.`,
+  };
+}
+
 /** One-off messages the app sends outside of slot alerts. */
 export const SYSTEM_MESSAGES: Record<
   MessageLanguage,

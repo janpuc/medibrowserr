@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { apiError } from "@/lib/api";
 import { monitorInputSchema } from "@/lib/monitor-schema";
 import { getDb, schema } from "@/server/db";
@@ -56,6 +56,28 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
     // Re-activating or rescheduling should take effect promptly.
     if (patch.active || patch.intervalMinutes !== undefined) set.nextRunAt = Date.now();
+
+    // A changed search scope invalidates the "still bookable" bookkeeping —
+    // expire active slots silently so they don't get reported as "taken".
+    const scopeKeys = [
+      "regionIds",
+      "specialtyIds",
+      "clinicIds",
+      "doctorIds",
+      "doctorNameFilter",
+      "startDate",
+      "endDate",
+      "startHour",
+      "endHour",
+      "slotSearchType",
+      "doctorLanguageId",
+    ] as const;
+    if (scopeKeys.some((key) => patch[key] !== undefined)) {
+      await db
+        .update(schema.foundSlots)
+        .set({ goneAt: Date.now(), goneReason: "expired" })
+        .where(and(eq(schema.foundSlots.monitorId, id), isNull(schema.foundSlots.goneAt)));
+    }
 
     const [row] = await db
       .update(schema.monitors)

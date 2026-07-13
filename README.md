@@ -17,6 +17,15 @@ proper web app for self-hosting.
   language, consultation vs diagnostic. **Preview results** before saving.
 - **Pushover notifications** with sensible default messages (PL/EN chosen when
   you create the monitor), priority per monitor, test button in Settings.
+  The lifecycle is noise-free by design:
+  - new slots (or ones that came back after a cancellation) → one alert with
+    the whole list;
+  - a slot seen again on a later sweep → silence;
+  - a future slot that vanished (someone booked it) → a heads-up one priority
+    step lower; past-dated slots expire silently.
+  Notifications link back to this app when its URL is configured.
+- **Activity log** — every found / taken / expired slot in one chronological
+  feed; taken slots also stay visible (grayed out) among the caught tickets.
 - **Coverage checker** — browse or search the full Medicover service catalog
   and see how *your* plan treats each service: covered, referral required,
   volume/value limits (with usage), discount or payable.
@@ -88,6 +97,7 @@ overrides — a value set via env **wins over the GUI and shows up locked**
 | `MEDIBROWSERR_DEFAULT_CLINIC_IDS` | Clinics preselected in new monitors, comma-separated ids |
 | `MEDIBROWSERR_DEFAULT_LANGUAGE` | Default notification language, `pl` or `en` |
 | `MEDIBROWSERR_DEFAULT_INTERVAL` | Default sweep interval in minutes |
+| `MEDIBROWSERR_URL` | Public URL of this app — Pushover notifications link here (e.g. `https://medibrowserr.home.lan`) |
 | `TZ` | Timezone for schedules/dates. Image default: `Europe/Warsaw` |
 
 Region/clinic ids are visible in the Settings pickers (or via

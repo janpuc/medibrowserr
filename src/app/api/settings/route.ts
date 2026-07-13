@@ -19,6 +19,11 @@ const patchSchema = z.object({
   defaultIntervalMinutes: z.number().int().min(5).max(24 * 60).optional(),
   defaultRegions: z.array(idValue).optional(),
   defaultClinics: z.array(idValue).optional(),
+  appUrl: z
+    .string()
+    .refine((s) => s === "" || /^https?:\/\//.test(s), "Must start with http(s)://")
+    .transform((s) => s.replace(/\/+$/, ""))
+    .optional(),
 });
 
 function redact(settings: AppSettings) {

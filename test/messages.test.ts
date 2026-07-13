@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildGoneNotification,
   buildNotification,
   formatSlotDate,
   SYSTEM_MESSAGES,
@@ -46,6 +47,25 @@ describe("buildNotification (default messages)", () => {
   it("caps the list and mentions the remainder", () => {
     const many = buildNotification("K", undefined, Array(10).fill(slot()), "en");
     expect(many.message).toContain("…and 4 more slots.");
+  });
+});
+
+describe("buildGoneNotification", () => {
+  it("writes the Polish gone message with plural forms", () => {
+    const one = buildGoneNotification("Kardiolog", [slot()], "pl");
+    expect(one.title).toBe("📉 Kardiolog: termin zniknął");
+    expect(one.message).toContain("Ktoś był szybszy");
+
+    const three = buildGoneNotification("K", [slot(), slot(), slot()], "pl");
+    expect(three.title).toContain("3 terminy zniknęły");
+    const seven = buildGoneNotification("K", Array(7).fill(slot()), "pl");
+    expect(seven.title).toContain("7 terminów zniknęło");
+  });
+
+  it("writes the English gone message", () => {
+    const res = buildGoneNotification("Cardio", [slot(), slot()], "en");
+    expect(res.title).toBe("📉 Cardio: 2 slots are gone");
+    expect(res.message).toContain("Someone was quicker");
   });
 });
 

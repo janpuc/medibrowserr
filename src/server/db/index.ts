@@ -71,7 +71,9 @@ CREATE TABLE IF NOT EXISTS found_slots (
   visit_type TEXT,
   first_seen_at INTEGER NOT NULL,
   last_seen_at INTEGER NOT NULL,
-  notified_at INTEGER
+  notified_at INTEGER,
+  gone_at INTEGER,
+  gone_reason TEXT
 );
 CREATE UNIQUE INDEX IF NOT EXISTS found_slots_monitor_dedupe
   ON found_slots (monitor_id, dedupe_key);
@@ -121,6 +123,14 @@ function init(): NonNullable<GlobalWithDb["__medibrowserrDb"]> {
       for (const stmt of BOOTSTRAP.split(";")) {
         const sql = stmt.trim();
         if (sql) await client.execute(sql);
+      }
+      // Additive migrations for databases created before these columns
+      // existed (CREATE TABLE IF NOT EXISTS won't touch existing tables).
+      for (const stmt of [
+        "ALTER TABLE found_slots ADD COLUMN gone_at INTEGER",
+        "ALTER TABLE found_slots ADD COLUMN gone_reason TEXT",
+      ]) {
+        await client.execute(stmt).catch(() => {}); // duplicate column → no-op
       }
     })();
     g.__medibrowserrDb = { client, db, ready };

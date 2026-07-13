@@ -44,8 +44,21 @@ export interface FoundSlotRow {
     visitType: string | null;
     firstSeenAt: number;
     notifiedAt: number | null;
+    goneAt: number | null;
+    goneReason: "taken" | "expired" | null;
   };
   monitorName: string | null;
+}
+
+export interface ActivityEvent {
+  type: "found" | "taken" | "expired";
+  at: number;
+  slotId: number;
+  monitorName: string | null;
+  appointmentDate: string;
+  doctorName: string | null;
+  clinicName: string | null;
+  specialtyName: string | null;
 }
 
 export interface MedicoverStatus {

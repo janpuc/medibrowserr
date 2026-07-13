@@ -17,6 +17,7 @@ interface Settings {
   defaultIntervalMinutes: number;
   defaultRegions: Option[];
   defaultClinics: Option[];
+  appUrl: string;
 }
 
 interface SettingsPayload {
@@ -155,7 +156,7 @@ export default function SettingsPage() {
     type = "text",
     placeholder,
   }: {
-    field: keyof Settings & ("medicoverUser" | "medicoverPass" | "pushoverToken" | "pushoverUser" | "pushoverDevice");
+    field: keyof Settings & ("medicoverUser" | "medicoverPass" | "pushoverToken" | "pushoverUser" | "pushoverDevice" | "appUrl");
     type?: string;
     placeholder?: string;
   }) => (
@@ -232,6 +233,15 @@ export default function SettingsPage() {
                 <LockableInput field="pushoverDevice" />
               </Field>
             </div>
+            <Field
+              label="This app's URL"
+              hint={
+                envHint("appUrl", "MEDIBROWSERR_URL") ??
+                "Notification links open the app here, e.g. https://medibrowserr.home.lan. Empty = link to Medicover instead."
+              }
+            >
+              <LockableInput field="appUrl" placeholder="https://medibrowserr.example.com" />
+            </Field>
             <Button onClick={() => void testPushover()} disabled={testBusy}>
               {testBusy ? <Spinner /> : null}
               Send test notification

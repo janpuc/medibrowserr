@@ -38,10 +38,16 @@ The flow that ties everything together:
    `{result: [...]}`; the services autocomplete with an empty `QueryString`
    pages through the entire catalog. No public OpenAPI spec exists (404s).
 3. **Monitors** (`src/server/monitors/`) — `engine.ts` runs one monitor: search
-   → dedupe against `found_slots` (sha1 of date+doctor+clinic+specialty per
-   monitor) → Pushover notify (templates in `src/server/notify/messages.ts`,
-   PL/EN per monitor). `scheduler.ts` ticks every 30 s from `src/instrumentation.ts`
-   and runs due monitors serially; `nextRunAt` lives in the DB so restarts resume.
+   → diff against `found_slots` (sha1 of date+doctor+clinic+specialty per
+   monitor). New slots (incl. reappearing ones) notify at the monitor's
+   priority; future slots missing from the sweep are marked `gone_reason=taken`
+   and notify one priority lower; past-dated ones expire silently
+   (`splitGoneCandidates` in `slots.ts` — string-compares Poland-local time via
+   `nowWarsawIso`). Editing a monitor's scope expires its active slots silently
+   to avoid false "taken" alerts. Templates live in
+   `src/server/notify/messages.ts` (PL/EN per monitor); links use the `appUrl`
+   setting when present. `scheduler.ts` ticks every 30 s from
+   `src/instrumentation.ts`; `nextRunAt` lives in the DB so restarts resume.
 4. **DB** (`src/server/db/`) — schema bootstraps at runtime via idempotent
    `CREATE TABLE IF NOT EXISTS` (no migrations needed for fresh containers);
    keep `schema.ts` and the `BOOTSTRAP` DDL in `index.ts` in sync when changing tables.
