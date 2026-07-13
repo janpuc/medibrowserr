@@ -1,13 +1,19 @@
 import "server-only";
-import { and, eq, isNull, lte, or } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, lte, or } from "drizzle-orm";
 import { autoSeedIfStale } from "@/server/coverage/seeder";
 import { getDb, schema } from "@/server/db";
 import { runMonitor } from "./engine";
 
 const TICK_MS = 30_000;
+const CLEANUP_EVERY_MS = 24 * 3600 * 1000;
+const RETENTION_MS = 90 * 24 * 3600 * 1000;
 
 type GlobalWithScheduler = typeof globalThis & {
-  __medibrowserrScheduler?: { timer: ReturnType<typeof setInterval>; running: boolean };
+  __medibrowserrScheduler?: {
+    timer: ReturnType<typeof setInterval>;
+    running: boolean;
+    lastCleanupAt?: number;
+  };
 };
 
 /**
@@ -17,7 +23,10 @@ type GlobalWithScheduler = typeof globalThis & {
 export function startScheduler(): void {
   const g = globalThis as GlobalWithScheduler;
   if (g.__medibrowserrScheduler) return;
-  const state = { running: false, timer: setInterval(() => void tick(), TICK_MS) };
+  const state: NonNullable<GlobalWithScheduler["__medibrowserrScheduler"]> = {
+    running: false,
+    timer: setInterval(() => void tick(), TICK_MS),
+  };
   g.__medibrowserrScheduler = state;
   console.log("[scheduler] started, tick every", TICK_MS / 1000, "s");
 
@@ -28,6 +37,23 @@ export function startScheduler(): void {
       // Keep the local coverage index fresh (no-op unless connected & stale).
       await autoSeedIfStale().catch(() => {});
       const db = await getDb();
+
+      // Daily retention: gone slots and notification logs older than 90 days.
+      const now = Date.now();
+      if (!state.lastCleanupAt || now - state.lastCleanupAt > CLEANUP_EVERY_MS) {
+        state.lastCleanupAt = now;
+        await db
+          .delete(schema.foundSlots)
+          .where(
+            and(
+              isNotNull(schema.foundSlots.goneAt),
+              lt(schema.foundSlots.goneAt, now - RETENTION_MS),
+            ),
+          );
+        await db
+          .delete(schema.notifications)
+          .where(lt(schema.notifications.sentAt, now - RETENTION_MS));
+      }
       const due = await db
         .select()
         .from(schema.monitors)

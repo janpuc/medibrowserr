@@ -7,7 +7,9 @@
 FROM node:24-bookworm-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# --ignore-scripts: no dependency here needs a postinstall (libsql ships
+# prebuilt binaries), and skipping them blunts supply-chain surprises.
+RUN npm ci --ignore-scripts
 
 FROM node:24-bookworm-slim AS builder
 WORKDIR /app

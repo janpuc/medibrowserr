@@ -77,6 +77,8 @@ CREATE TABLE IF NOT EXISTS found_slots (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS found_slots_monitor_dedupe
   ON found_slots (monitor_id, dedupe_key);
+CREATE INDEX IF NOT EXISTS found_slots_monitor_gone
+  ON found_slots (monitor_id, gone_at);
 CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   monitor_id INTEGER,
@@ -120,6 +122,11 @@ function init(): NonNullable<GlobalWithDb["__medibrowserrDb"]> {
     const client = createClient({ url: databaseUrl() });
     const db = drizzle(client, { schema });
     const ready = (async () => {
+      // WAL lets the scheduler write while HTTP handlers read; the busy
+      // timeout rides out the moments both want the write lock.
+      await client.execute("PRAGMA journal_mode = WAL").catch(() => {});
+      await client.execute("PRAGMA synchronous = NORMAL").catch(() => {});
+      await client.execute("PRAGMA busy_timeout = 5000").catch(() => {});
       for (const stmt of BOOTSTRAP.split(";")) {
         const sql = stmt.trim();
         if (sql) await client.execute(sql);

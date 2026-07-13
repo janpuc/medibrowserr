@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { api, timeAgo, usePoll } from "@/lib/client";
+import { ConfirmDialog } from "@/components/confirm";
 import { Badge, Button, Card, PageHeader, Spinner, inputClass } from "@/components/ui";
 
 interface Plan {
@@ -196,6 +197,7 @@ export default function CoveragePage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const seedRunning = data?.seed.state === "running";
+  const [confirmRebuild, setConfirmRebuild] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -353,11 +355,28 @@ export default function CoveragePage() {
             <>Indexed {counts?.all.toLocaleString()} services</>
           )}
           {seed?.freshUntil ? <>· next refresh {timeAgo(seed.freshUntil - 21 * 24 * 3600 * 1000)}</> : null}
-          <Button size="sm" variant="ghost" onClick={() => void startSeed(true)} title="Re-check everything now">
-            <RefreshCw size={13} /> Refresh
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => setConfirmRebuild(true)}
+            title="Re-checks every service against Medicover — takes about 30 minutes"
+          >
+            <RefreshCw size={13} /> Rebuild index (~30 min)
           </Button>
         </p>
       )}
+
+      <ConfirmDialog
+        open={confirmRebuild}
+        title="Rebuild the whole coverage index?"
+        body={`Every service (${(counts?.all ?? 0).toLocaleString()}) gets re-checked against Medicover. It runs in the background but takes about 30 minutes and hits their API a few times per second — the index refreshes itself every 3 weeks anyway.`}
+        confirmLabel="Rebuild index"
+        onCancel={() => setConfirmRebuild(false)}
+        onConfirm={() => {
+          setConfirmRebuild(false);
+          void startSeed(true);
+        }}
+      />
 
       <div className="mb-4 flex flex-wrap gap-2">
         {chips.map((chip) => (

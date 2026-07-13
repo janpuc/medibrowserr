@@ -78,8 +78,9 @@ Run **exactly one instance** per database: SQLite plus the in-process
 scheduler don't share. On Kubernetes that means `replicas: 1` with a
 `Recreate` strategy and a ReadWriteOnce PVC mounted at `/data`.
 
-> **Security note:** the app has no built-in authentication. Keep it on an
-> internal network, or put basic-auth / an auth proxy in front of it. Your
+> **Security note:** the app ships without authentication by default. Keep it
+> on an internal network, put an auth proxy in front of it, or at minimum set
+> `MEDIBROWSERR_BASIC_AUTH=user:password` for built-in HTTP Basic Auth. Your
 > Medicover password and tokens live in the SQLite database.
 
 ## Configuration
@@ -98,6 +99,7 @@ overrides — a value set via env **wins over the GUI and shows up locked**
 | `MEDIBROWSERR_DEFAULT_LANGUAGE` | Default notification language, `pl` or `en` |
 | `MEDIBROWSERR_DEFAULT_INTERVAL` | Default sweep interval in minutes |
 | `MEDIBROWSERR_URL` | Public URL of this app — Pushover notifications link here (e.g. `https://medibrowserr.home.lan`) |
+| `MEDIBROWSERR_BASIC_AUTH` | `user:password` — when set, the whole app (except `/api/health`) requires HTTP Basic Auth. A proper auth proxy is still preferred. |
 | `TZ` | Timezone for schedules/dates. Image default: `Europe/Warsaw` |
 
 Region/clinic ids are visible in the Settings pickers (or via

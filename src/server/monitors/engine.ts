@@ -1,6 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb, schema } from "@/server/db";
 import { MfaInteractionRequired } from "@/server/medicover/auth";
 import { searchSlots } from "@/server/medicover/client";
@@ -108,26 +108,20 @@ export async function runMonitor(monitor: MonitorRow): Promise<RunResult> {
     );
     const currentKeys = new Set(slots.map(dedupeKey));
 
-    // Snapshot of what we believed was still bookable before this sweep.
-    const activeRows = await db
+    // One query for the monitor's whole history: sweep diffing happens
+    // in-memory instead of a SELECT per slot.
+    const allRows = await db
       .select()
       .from(schema.foundSlots)
-      .where(
-        and(eq(schema.foundSlots.monitorId, monitor.id), isNull(schema.foundSlots.goneAt)),
-      );
+      .where(eq(schema.foundSlots.monitorId, monitor.id));
+    const rowsByKey = new Map(allRows.map((row) => [row.dedupeKey, row]));
+    // Snapshot of what we believed was still bookable before this sweep.
+    const activeRows = allRows.filter((row) => row.goneAt === null);
 
     const newSlots: Slot[] = [];
     for (const slot of slots) {
       const key = dedupeKey(slot);
-      const [existing] = await db
-        .select()
-        .from(schema.foundSlots)
-        .where(
-          and(
-            eq(schema.foundSlots.monitorId, monitor.id),
-            eq(schema.foundSlots.dedupeKey, key),
-          ),
-        );
+      const existing = rowsByKey.get(key);
       if (!existing) {
         newSlots.push(slot);
         await db.insert(schema.foundSlots).values({
