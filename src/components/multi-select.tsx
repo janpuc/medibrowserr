@@ -9,6 +9,23 @@ export interface Option {
   value: string;
 }
 
+/** Ids may arrive as numbers or padded strings depending on the source. */
+const sameId = (a: string | number, b: string | number) =>
+  String(a).trim() === String(b).trim();
+
+/** Drops entries whose id already appeared — a selection can never duplicate. */
+export function dedupeOptions(list: Option[]): Option[] {
+  const seen = new Set<string>();
+  const out: Option[] = [];
+  for (const option of list) {
+    const key = String(option.id).trim();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(option);
+  }
+  return out;
+}
+
 /**
  * Searchable multi-select for the Medicover dictionaries (regions, clinics,
  * doctors…). Type to filter, click or Enter to toggle, chips show selection.
@@ -42,23 +59,30 @@ export function MultiSelect({
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
+  // Defensive: never render or hand back duplicated entries, whatever the
+  // parent state got seeded with (env vars, stored defaults, races…).
+  const safeSelected = useMemo(() => dedupeOptions(selected), [selected]);
+  const safeOptions = useMemo(() => dedupeOptions(options), [options]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("pl");
     const base = q
-      ? options.filter((o) => o.value.toLocaleLowerCase("pl").includes(q))
-      : options;
+      ? safeOptions.filter((o) => o.value.toLocaleLowerCase("pl").includes(q))
+      : safeOptions;
     return base.slice(0, 250);
-  }, [options, query]);
+  }, [safeOptions, query]);
 
   const toggle = (option: Option) => {
-    const isSelected = selected.some((s) => s.id === option.id);
+    const isSelected = safeSelected.some((s) => sameId(s.id, option.id));
     if (single) {
       onChange(isSelected ? [] : [option]);
       setOpen(false);
       return;
     }
     onChange(
-      isSelected ? selected.filter((s) => s.id !== option.id) : [...selected, option],
+      isSelected
+        ? safeSelected.filter((s) => !sameId(s.id, option.id))
+        : dedupeOptions([...safeSelected, option]),
     );
   };
 
@@ -74,9 +98,9 @@ export function MultiSelect({
           open && "border-clinic",
         )}
       >
-        <span className={clsx("truncate", !selected.length && "text-ink-soft/70")}>
-          {selected.length
-            ? selected.map((s) => s.value).join(", ")
+        <span className={clsx("truncate", !safeSelected.length && "text-ink-soft/70")}>
+          {safeSelected.length
+            ? safeSelected.map((s) => s.value).join(", ")
             : loading
               ? "Loading…"
               : placeholder}
@@ -84,9 +108,9 @@ export function MultiSelect({
         <ChevronDown size={16} className="shrink-0 text-ink-soft" />
       </button>
 
-      {selected.length > 1 ? (
+      {safeSelected.length > 1 ? (
         <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {selected.map((s) => (
+          {safeSelected.map((s) => (
             <span
               key={s.id}
               className="inline-flex items-center gap-1 rounded-md bg-clinic-wash px-2 py-0.5 text-xs font-medium text-clinic-deep"
@@ -121,7 +145,7 @@ export function MultiSelect({
               </li>
             ) : (
               filtered.map((option) => {
-                const isSelected = selected.some((s) => s.id === option.id);
+                const isSelected = safeSelected.some((s) => sameId(s.id, option.id));
                 return (
                   <li key={option.id}>
                     <button

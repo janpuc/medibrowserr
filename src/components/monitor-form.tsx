@@ -45,7 +45,10 @@ export function MonitorForm({ existing }: { existing?: Monitor }) {
   const toOptions = (ids: string, values: string) => {
     const idArr = JSON.parse(ids) as (string | number)[];
     const valArr = JSON.parse(values) as string[];
-    return idArr.map((id, i) => ({ id: String(id), value: valArr[i] ?? String(id) }));
+    return idArr.map((id, i) => ({
+      id: String(id).trim(),
+      value: valArr[i] ?? String(id),
+    }));
   };
 
   const [name, setName] = useState(existing?.name ?? "");
@@ -95,9 +98,11 @@ export function MonitorForm({ existing }: { existing?: Monitor }) {
   // New monitors start from the defaults configured in Settings.
   useEffect(() => {
     if (existing) return;
+    const normalize = (list: Option[]) =>
+      list.map((o) => ({ id: String(o.id).trim(), value: String(o.value) }));
     void api<SettingsPayload>("/api/settings").then(({ settings }) => {
-      setRegions((prev) => (prev.length ? prev : settings.defaultRegions));
-      setClinics((prev) => (prev.length ? prev : settings.defaultClinics));
+      setRegions((prev) => (prev.length ? prev : normalize(settings.defaultRegions)));
+      setClinics((prev) => (prev.length ? prev : normalize(settings.defaultClinics)));
       setIntervalMin(settings.defaultIntervalMinutes);
       setMessageLanguage(settings.defaultLanguage);
     });
@@ -120,7 +125,11 @@ export function MonitorForm({ existing }: { existing?: Monitor }) {
         setFilters(f);
         // Resolve id-only defaults (e.g. seeded from env vars) to names.
         const resolve = (sel: Option[], dict: Option[]) =>
-          sel.map((s) => (s.value === s.id ? (dict.find((d) => d.id === s.id) ?? s) : s));
+          sel.map((s) =>
+            s.value === s.id
+              ? (dict.find((d) => String(d.id).trim() === String(s.id).trim()) ?? s)
+              : s,
+          );
         setRegions((prev) => resolve(prev, f.regions));
         setClinics((prev) => resolve(prev, f.clinics));
         // Coverage → monitor handoff: preselect the best-matching specialty.

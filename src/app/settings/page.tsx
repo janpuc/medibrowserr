@@ -80,11 +80,15 @@ export default function SettingsPage() {
           prev
             ? {
                 ...prev,
-                defaultRegions: prev.defaultRegions.map(
-                  (r) => (r.value === r.id ? (f.regions.find((d) => d.id === r.id) ?? r) : r),
+                defaultRegions: prev.defaultRegions.map((r) =>
+                  r.value === r.id
+                    ? (f.regions.find((d) => String(d.id).trim() === String(r.id).trim()) ?? r)
+                    : r,
                 ),
-                defaultClinics: prev.defaultClinics.map(
-                  (c) => (c.value === c.id ? (f.clinics.find((d) => d.id === c.id) ?? c) : c),
+                defaultClinics: prev.defaultClinics.map((c) =>
+                  c.value === c.id
+                    ? (f.clinics.find((d) => String(d.id).trim() === String(c.id).trim()) ?? c)
+                    : c,
                 ),
               }
             : prev,
@@ -150,16 +154,18 @@ export default function SettingsPage() {
     setSettings({ ...settings, [key]: value });
   const isLocked = (key: keyof Settings) => locked.includes(key);
 
-  /** Text input that grays out when the value is pinned by an env var. */
-  const LockableInput = ({
-    field,
+  /**
+   * Text input that grays out when the value is pinned by an env var.
+   * Deliberately a render *function*, not a nested component: a component
+   * type recreated on each keystroke would remount the input, dropping
+   * focus and reversing typed text.
+   */
+  const lockableInput = (
+    field: keyof Settings &
+      ("medicoverUser" | "medicoverPass" | "pushoverToken" | "pushoverUser" | "pushoverDevice" | "appUrl"),
     type = "text",
-    placeholder,
-  }: {
-    field: keyof Settings & ("medicoverUser" | "medicoverPass" | "pushoverToken" | "pushoverUser" | "pushoverDevice" | "appUrl");
-    type?: string;
-    placeholder?: string;
-  }) => (
+    placeholder?: string,
+  ) => (
     <div className="relative">
       <input
         className={`${inputClass} ${isLocked(field) ? "cursor-not-allowed bg-paper text-ink-soft" : ""}`}
@@ -194,7 +200,7 @@ export default function SettingsPage() {
                 label="Card number / login"
                 hint={envHint("medicoverUser", "MEDICOVER_USER")}
               >
-                <LockableInput field="medicoverUser" placeholder="e.g. 4612027" />
+                {lockableInput("medicoverUser", "text", "e.g. 4612027")}
               </Field>
               <Field
                 label="Password"
@@ -203,7 +209,7 @@ export default function SettingsPage() {
                   "Shown as ••• once saved; type to replace."
                 }
               >
-                <LockableInput field="medicoverPass" type="password" />
+                {lockableInput("medicoverPass", "password")}
               </Field>
             </div>
           </Card>
@@ -221,16 +227,16 @@ export default function SettingsPage() {
                   "Create an app at pushover.net/apps."
                 }
               >
-                <LockableInput field="pushoverToken" type="password" />
+                {lockableInput("pushoverToken", "password")}
               </Field>
               <Field label="User key" hint={envHint("pushoverUser", "PUSHOVER_USER")}>
-                <LockableInput field="pushoverUser" />
+                {lockableInput("pushoverUser")}
               </Field>
               <Field
                 label="Device (optional)"
                 hint={envHint("pushoverDevice", "PUSHOVER_DEVICE") ?? "Empty = all devices."}
               >
-                <LockableInput field="pushoverDevice" />
+                {lockableInput("pushoverDevice")}
               </Field>
             </div>
             <Field
@@ -240,7 +246,7 @@ export default function SettingsPage() {
                 "Notification links open the app here, e.g. https://medibrowserr.home.lan. Empty = link to Medicover instead."
               }
             >
-              <LockableInput field="appUrl" placeholder="https://medibrowserr.example.com" />
+              {lockableInput("appUrl", "text", "https://medibrowserr.example.com")}
             </Field>
             <Button onClick={() => void testPushover()} disabled={testBusy}>
               {testBusy ? <Spinner /> : null}
