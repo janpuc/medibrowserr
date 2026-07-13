@@ -126,6 +126,12 @@ use [Conventional Commits](https://www.conventionalcommits.org) (`feat:`,
 `ghcr.io/<owner>/medibrowserr` with `:X.Y.Z`, `:X.Y`, `:X`, `:latest` tags.
 Every push to `main` also publishes `:edge` + `:sha-<short>` for the brave.
 
+## License
+
+[GPL-3.0-or-later](LICENSE) — same family as
+[medihunter](https://github.com/apqlzm/medihunter), which inspired this
+project.
+
 ## Disclaimer
 
 Unofficial, not affiliated with Medicover. It automates the same requests
