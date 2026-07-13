@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" alt="medibrowserr logo" width="96" height="96" />
+</p>
+
 # medibrowserr
 
 [![CI](https://github.com/janpuc/medibrowserr/actions/workflows/ci.yml/badge.svg)](https://github.com/janpuc/medibrowserr/actions/workflows/ci.yml)
@@ -12,6 +16,19 @@ appears — with default messages in Polish or English, your pick per monitor.
 
 Inspired by [medihunter](https://github.com/apqlzm/medihunter), rebuilt as a
 proper web app for self-hosting.
+
+![Monitors dashboard](docs/screenshots/dashboard.png)
+
+<details>
+<summary>More screenshots — coverage, appointments, dark mode</summary>
+
+![Coverage checker](docs/screenshots/coverage.png)
+![Caught slots](docs/screenshots/appointments.png)
+![Dark mode](docs/screenshots/dashboard-dark.png)
+
+</details>
+
+*(Screenshots show sample data. Logo available in [`docs/logo.svg`](docs/logo.svg) / [`docs/logo.png`](docs/logo.png).)*
 
 ## Features
 
@@ -105,10 +122,35 @@ overrides — a value set via env **wins over the GUI and shows up locked**
 | `MEDIBROWSERR_DEFAULT_INTERVAL` | Default sweep interval in minutes |
 | `MEDIBROWSERR_URL` | Public URL of this app — Pushover notifications link here (e.g. `https://medibrowserr.home.lan`) |
 | `MEDIBROWSERR_BASIC_AUTH` | `user:password` — when set, the whole app (except `/api/health`) requires HTTP Basic Auth. A proper auth proxy is still preferred. |
+| `PORT` | HTTP port. Image default: `3000` |
+| `MEDIBROWSERR_USER_AGENT` | Override the browser User-Agent sent to Medicover (empty = built-in Chrome UA) |
+| `MEDIBROWSERR_SEED_CONCURRENCY` / `MEDIBROWSERR_SEED_DELAY_MS` | Coverage-crawl pacing; defaults `2` / `300` ≈ 2.5 req/s. Raise at your own risk (see below) |
 | `TZ` | Timezone for schedules/dates. Image default: `Europe/Warsaw` |
 
 Region/clinic ids are visible in the Settings pickers (or via
 `GET /api/medicover/filters`).
+
+## Staying under Medicover's rate limits
+
+medibrowserr talks to the same API your browser does, and Medicover's WAF
+**will temporarily block IPs that hammer it** (it looks like connections
+closing with no response — the app reports it plainly and backs off). Ground
+rules baked into the defaults, worth keeping:
+
+- **Monitor sweeps:** 15 min is a polite default. Don't run many monitors at
+  5-minute intervals — they execute serially with gaps, but dozens of daily
+  searches per monitor add up.
+- **Coverage index:** the crawl is deliberately slow (~2.5 req/s → about an
+  hour for the full catalog) and pauses itself for 20 minutes when Medicover
+  starts refusing connections, resuming automatically with progress saved.
+  Don't force-rebuild more than occasionally — it refreshes itself every
+  3 weeks, and the catalog barely changes.
+- **Logins:** repeated failed password logins lock the account for ~15
+  minutes. The app logs in rarely (refresh tokens do the work).
+
+Risks if you push it anyway: a temporary IP block (everything in the app
+fails for a while — annoying but harmless), and theoretically account-level
+attention from Medicover. Be a considerate guest.
 
 ## Development
 

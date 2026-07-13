@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Lock } from "lucide-react";
+import { GithubMark } from "@/components/nav";
 import { api, usePoll, type MedicoverStatus } from "@/lib/client";
 import { Button, Card, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
 import { ConnectWizard } from "@/components/connect-wizard";
@@ -18,6 +19,7 @@ interface Settings {
   defaultRegions: Option[];
   defaultClinics: Option[];
   appUrl: string;
+  userAgent: string;
 }
 
 interface SettingsPayload {
@@ -46,6 +48,7 @@ export default function SettingsPage() {
   const [testBusy, setTestBusy] = useState(false);
   const [dicts, setDicts] = useState<Filters | null>(null);
   const [dictsLoading, setDictsLoading] = useState(false);
+  const [version, setVersion] = useState<string | null>(null);
 
   useEffect(() => {
     void api<SettingsPayload>("/api/settings")
@@ -54,6 +57,9 @@ export default function SettingsPage() {
         setLocked(p.locked);
       })
       .catch(() => setSettings(null));
+    void api<{ version: string }>("/api/health")
+      .then((h) => setVersion(h.version))
+      .catch(() => setVersion(null));
   }, []);
 
   const regionIds = useMemo(
@@ -162,7 +168,7 @@ export default function SettingsPage() {
    */
   const lockableInput = (
     field: keyof Settings &
-      ("medicoverUser" | "medicoverPass" | "pushoverToken" | "pushoverUser" | "pushoverDevice" | "appUrl"),
+      ("medicoverUser" | "medicoverPass" | "pushoverToken" | "pushoverUser" | "pushoverDevice" | "appUrl" | "userAgent"),
     type = "text",
     placeholder?: string,
   ) => (
@@ -211,6 +217,17 @@ export default function SettingsPage() {
               >
                 {lockableInput("medicoverPass", "password")}
               </Field>
+              <div className="sm:col-span-2">
+                <Field
+                  label="Browser identity (User-Agent)"
+                  hint={
+                    envHint("userAgent", "MEDIBROWSERR_USER_AGENT") ??
+                    "Sent with every Medicover request. Leave empty for the built-in one; change it only if requests start getting blocked."
+                  }
+                >
+                  {lockableInput("userAgent", "text", "built-in Chrome UA")}
+                </Field>
+              </div>
             </div>
           </Card>
           <ConnectWizard status={status.data} onChanged={() => void status.reload()} />
@@ -346,6 +363,27 @@ export default function SettingsPage() {
           {saving ? <Spinner className="border-white/40 border-t-white" /> : null}
           Save changes
         </Button>
+
+        <section>
+          <h2 className="mb-3 font-display text-lg font-semibold">About</h2>
+          <Card className="flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-4 text-sm">
+            <span>
+              medibrowserr{" "}
+              <span className="font-mono text-[12px] text-ink-soft">{version ?? "…"}</span>
+            </span>
+            <a
+              href="https://github.com/janpuc/medibrowserr"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-clinic hover:underline"
+            >
+              <GithubMark size={15} /> github.com/janpuc/medibrowserr
+            </a>
+            <span className="text-ink-soft">
+              GPL-3.0 · unofficial, not affiliated with Medicover
+            </span>
+          </Card>
+        </section>
       </div>
     </>
   );

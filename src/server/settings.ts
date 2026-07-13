@@ -24,6 +24,8 @@ export interface AppSettings {
   defaultClinics: IdValue[];
   /** Public URL of this app — notification links point here when set. */
   appUrl: string;
+  /** Overrides the browser User-Agent sent to Medicover (empty = built-in). */
+  userAgent: string;
 }
 
 /** Persisted Medicover session — survives restarts so logins stay rare. */
@@ -50,6 +52,7 @@ const DEFAULTS: AppSettings = {
   defaultRegions: [],
   defaultClinics: [],
   appUrl: "",
+  userAgent: "",
 };
 
 const parseIdList = (raw: string): IdValue[] =>
@@ -83,6 +86,9 @@ function envSettings(): Partial<AppSettings> {
   }
   if (process.env.MEDIBROWSERR_URL) {
     env.appUrl = process.env.MEDIBROWSERR_URL.replace(/\/+$/, "");
+  }
+  if (process.env.MEDIBROWSERR_USER_AGENT) {
+    env.userAgent = process.env.MEDIBROWSERR_USER_AGENT;
   }
   return env;
 }

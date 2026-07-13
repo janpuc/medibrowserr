@@ -17,6 +17,21 @@ export const API_URL = "https://api-gateway-online24.medicover.pl";
 export const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
+/** The UA can be overridden (Settings / MEDIBROWSERR_USER_AGENT); cached briefly. */
+let uaCache: { value: string; at: number } | null = null;
+export async function currentUserAgent(): Promise<string> {
+  if (uaCache && Date.now() - uaCache.at < 60_000) return uaCache.value;
+  let value = USER_AGENT;
+  try {
+    const { userAgent } = await getSettings();
+    if (userAgent?.trim()) value = userAgent.trim();
+  } catch {
+    /* settings unavailable during early boot — default UA is fine */
+  }
+  uaCache = { value, at: Date.now() };
+  return value;
+}
+
 const APP_VERSION = "3.27.0-beta.1.4";
 
 export class MedicoverAuthError extends Error {
@@ -108,7 +123,7 @@ async function request(
   init: RequestInit & { referer?: string } = {},
 ): Promise<Response> {
   const headers: Record<string, string> = {
-    "User-Agent": USER_AGENT,
+    "User-Agent": await currentUserAgent(),
     "Accept-Language": "pl,en;q=0.8",
     ...(init.headers as Record<string, string> | undefined),
   };

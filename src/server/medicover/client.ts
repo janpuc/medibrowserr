@@ -1,5 +1,5 @@
 import "server-only";
-import { API_URL, MAIN_URL, USER_AGENT, ensureAccessToken } from "./auth";
+import { API_URL, MAIN_URL, currentUserAgent, ensureAccessToken } from "./auth";
 import { filterSlots, isoToday } from "./slots";
 import type {
   BenefitPlan,
@@ -31,24 +31,51 @@ export class MedicoverApiError extends Error {
  */
 const SEED_REGION_ID = 204; // Warszawa
 
+/** Translates low-level fetch failures into something a human can act on. */
+function describeNetworkError(err: unknown): string {
+  const cause = (err as { cause?: { code?: string; message?: string } }).cause;
+  const code = cause?.code ?? "";
+  if (code === "UND_ERR_SOCKET" || code === "ECONNRESET") {
+    return (
+      "Medicover closed the connection mid-request — this is what their " +
+      "rate limiting looks like. Wait a few minutes before retrying, and " +
+      "consider gentler sweep/rebuild settings."
+    );
+  }
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+    return "Couldn't resolve Medicover's hostname — check the container's DNS/network.";
+  }
+  if (code === "ECONNREFUSED" || code === "UND_ERR_CONNECT_TIMEOUT") {
+    return "Couldn't reach Medicover (connection refused/timed out) — network issue or an IP block.";
+  }
+  return `Network error talking to Medicover${code ? ` (${code})` : ""}: ${cause?.message ?? (err instanceof Error ? err.message : String(err))}`;
+}
+
 async function apiGet<T>(path: string, params?: Iterable<[string, string]>): Promise<T> {
   const token = await ensureAccessToken();
   const url = new URL(API_URL + path);
   for (const [k, v] of params ?? []) url.searchParams.append(k, v);
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-      Origin: MAIN_URL,
-      Referer: `${MAIN_URL}/`,
-      "User-Agent": USER_AGENT,
-    },
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        Origin: MAIN_URL,
+        Referer: `${MAIN_URL}/`,
+        "User-Agent": await currentUserAgent(),
+      },
+      cache: "no-store",
+    });
+  } catch (err) {
+    throw new MedicoverApiError(describeNetworkError(err));
+  }
   const body = await res.text();
   if (!res.ok) {
     throw new MedicoverApiError(
-      `Medicover API ${path} failed (${res.status})`,
+      res.status === 429
+        ? `Medicover rate-limited the request (429) on ${path} — slow down and retry later`
+        : `Medicover API ${path} failed (${res.status})`,
       res.status,
       body.slice(0, 500),
     );

@@ -24,6 +24,7 @@ const patchSchema = z.object({
     .refine((s) => s === "" || /^https?:\/\//.test(s), "Must start with http(s)://")
     .transform((s) => s.replace(/\/+$/, ""))
     .optional(),
+  userAgent: z.string().max(300).optional(),
 });
 
 function redact(settings: AppSettings) {

@@ -40,10 +40,12 @@ interface IndexItem {
 }
 
 interface SeedStatus {
-  state: "idle" | "running" | "done" | "error";
+  state: "idle" | "running" | "done" | "error" | "stopped" | "cooldown";
   done: number;
   total: number;
   error?: string;
+  cooldownUntil?: number;
+  stoppedAt?: number;
   freshUntil: number | null;
 }
 
@@ -239,14 +241,18 @@ export default function CoveragePage() {
     };
   }, [seedRunning, fetchPage]);
 
-  const startSeed = async (force: boolean) => {
+  const seedAction = async (action: "start" | "stop", force = false) => {
     try {
-      await api("/api/coverage/seed", { method: "POST", body: JSON.stringify({ force }) });
+      await api("/api/coverage/seed", {
+        method: "POST",
+        body: JSON.stringify({ action, force }),
+      });
       await fetchPage(1);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   };
+  const startSeed = (force: boolean) => seedAction("start", force);
 
   const counts = data?.counts;
   const seed = data?.seed;
@@ -323,9 +329,35 @@ export default function CoveragePage() {
                 />
               </div>
               <p className="mt-1.5 text-xs text-ink-soft">
-                Runs in the background (~20 min) — results appear as they come in.
+                Runs in the background (~1 hour, deliberately slow to stay under
+                Medicover&apos;s rate limits) — results appear as they come in.
               </p>
             </div>
+            <Button onClick={() => void seedAction("stop")}>Pause</Button>
+          </div>
+        </Card>
+      ) : seed?.state === "cooldown" && (seed.cooldownUntil ?? 0) > Date.now() ? (
+        <Card className="mb-5 border-amber px-5 py-4">
+          <p className="text-sm font-medium">
+            Medicover rate-limited the index build — paused at{" "}
+            {seed.done.toLocaleString()} / {seed.total.toLocaleString()}.
+          </p>
+          <p className="mt-1 text-[13px] text-ink-soft">
+            Progress is saved. It resumes automatically around{" "}
+            {new Date(seed.cooldownUntil!).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            ; retrying sooner risks a longer block.
+          </p>
+        </Card>
+      ) : seed?.state === "stopped" && !indexEmpty ? (
+        <Card className="mb-5 px-5 py-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="min-w-0 flex-1 text-sm">
+              Index build paused at {seed.done.toLocaleString()} /{" "}
+              {seed.total.toLocaleString()} — progress is saved.
+            </p>
+            <Button variant="primary" onClick={() => void startSeed(false)}>
+              Resume
+            </Button>
           </div>
         </Card>
       ) : indexEmpty ? (
@@ -333,8 +365,9 @@ export default function CoveragePage() {
           <DatabaseZap className="mx-auto text-clinic" size={28} />
           <h3 className="mt-2 font-display text-lg font-semibold">Build your coverage index</h3>
           <p className="mx-auto mt-1 max-w-md text-sm text-ink-soft">
-            One background pass (~20 minutes) checks all ~9 000 Medicover services against
-            your plan. It refreshes itself every 3 weeks.
+            One background pass checks all ~9 000 Medicover services against your plan.
+            It takes about an hour on purpose — going faster gets your IP rate-limited —
+            and refreshes itself every 3 weeks. You can pause it anytime.
           </p>
           <Button
             variant="primary"
@@ -354,14 +387,14 @@ export default function CoveragePage() {
           ) : (
             <>Indexed {counts?.all.toLocaleString()} services</>
           )}
-          {seed?.freshUntil ? <>· next refresh {timeAgo(seed.freshUntil - 21 * 24 * 3600 * 1000)}</> : null}
+          {seed?.freshUntil ? <>· updated {timeAgo(seed.freshUntil - 21 * 24 * 3600 * 1000)}</> : null}
           <Button
             size="sm"
             variant="danger"
             onClick={() => setConfirmRebuild(true)}
-            title="Re-checks every service against Medicover — takes about 30 minutes"
+            title="Re-checks every service against Medicover — takes about an hour"
           >
-            <RefreshCw size={13} /> Rebuild index (~30 min)
+            <RefreshCw size={13} /> Rebuild index (~1 h)
           </Button>
         </p>
       )}
@@ -369,7 +402,7 @@ export default function CoveragePage() {
       <ConfirmDialog
         open={confirmRebuild}
         title="Rebuild the whole coverage index?"
-        body={`Every service (${(counts?.all ?? 0).toLocaleString()}) gets re-checked against Medicover. It runs in the background but takes about 30 minutes and hits their API a few times per second — the index refreshes itself every 3 weeks anyway.`}
+        body={`Every service (${(counts?.all ?? 0).toLocaleString()}) gets re-checked against Medicover. It runs in the background but takes about an hour, and doing it too often risks getting your IP rate-limited — the index refreshes itself every 3 weeks anyway.`}
         confirmLabel="Rebuild index"
         onCancel={() => setConfirmRebuild(false)}
         onConfirm={() => {
