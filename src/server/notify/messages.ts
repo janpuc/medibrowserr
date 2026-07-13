@@ -25,6 +25,28 @@ export function slotLine(slot: Slot, lang: MessageLanguage): string {
   return parts.join("\n") + (visit ? `\n💬 ${visit}` : "");
 }
 
+/** Tokens available in per-monitor line templates. */
+export const TEMPLATE_TOKENS = ["{datetime}", "{date}", "{time}", "{doctor}", "{clinic}", "{specialty}"] as const;
+
+/** Renders one slot line: the monitor's custom template, or the default. */
+export function renderSlotLine(
+  slot: Slot,
+  lang: MessageLanguage,
+  template?: string | null,
+): string {
+  if (!template?.trim()) return slotLine(slot, lang);
+  const formatted = formatSlotDate(slot.appointmentDate);
+  const [date, time] = formatted.split(" ");
+  return template
+    .replaceAll("{datetime}", formatted)
+    .replaceAll("{date}", date ?? "")
+    .replaceAll("{time}", time ?? "")
+    .replaceAll("{doctor}", slot.doctor?.name ?? "—")
+    .replaceAll("{clinic}", slot.clinic?.name ?? "—")
+    .replaceAll("{specialty}", slot.specialty?.name ?? "—")
+    .replaceAll("\\n", "\n");
+}
+
 /**
  * Default notification messages ("sensible defaults") in Polish and English.
  * The language is chosen per monitor when the notification rule is created.
@@ -34,10 +56,11 @@ export function buildNotification(
   specialtyName: string | undefined,
   slots: Slot[],
   lang: MessageLanguage,
+  lineTemplate?: string | null,
 ): { title: string; message: string } {
   const shown = slots.slice(0, 6);
   const more = slots.length - shown.length;
-  const lines = shown.map((s) => slotLine(s, lang)).join("\n\n");
+  const lines = shown.map((s) => renderSlotLine(s, lang, lineTemplate)).join("\n\n");
 
   if (lang === "pl") {
     const count =

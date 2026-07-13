@@ -14,6 +14,17 @@ export interface AppSettings {
   pushoverToken: string;
   pushoverUser: string;
   pushoverDevice: string;
+  telegramBotToken: string;
+  telegramChatId: string;
+  gotifyUrl: string;
+  gotifyToken: string;
+  ntfyUrl: string;
+  ntfyTopic: string;
+  ntfyToken: string;
+  /** Quiet hours deliver notifications silently (lowest priority). */
+  quietHoursEnabled: boolean;
+  /** Local-time range like "23-7" (start hour to end hour, may wrap midnight). */
+  quietHours: string;
   /** Default notification template language for new monitors. */
   defaultLanguage: "pl" | "en";
   /** Default polling interval for new monitors, minutes. */
@@ -47,6 +58,15 @@ const DEFAULTS: AppSettings = {
   pushoverToken: "",
   pushoverUser: "",
   pushoverDevice: "",
+  telegramBotToken: "",
+  telegramChatId: "",
+  gotifyUrl: "",
+  gotifyToken: "",
+  ntfyUrl: "https://ntfy.sh",
+  ntfyTopic: "",
+  ntfyToken: "",
+  quietHoursEnabled: false,
+  quietHours: "23-7",
   defaultLanguage: "pl",
   defaultIntervalMinutes: 15,
   defaultRegions: [],
@@ -74,6 +94,19 @@ function envSettings(): Partial<AppSettings> {
   if (process.env.PUSHOVER_TOKEN) env.pushoverToken = process.env.PUSHOVER_TOKEN;
   if (process.env.PUSHOVER_USER) env.pushoverUser = process.env.PUSHOVER_USER;
   if (process.env.PUSHOVER_DEVICE) env.pushoverDevice = process.env.PUSHOVER_DEVICE;
+  if (process.env.TELEGRAM_BOT_TOKEN) env.telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (process.env.TELEGRAM_CHAT_ID) env.telegramChatId = process.env.TELEGRAM_CHAT_ID;
+  if (process.env.GOTIFY_URL) env.gotifyUrl = process.env.GOTIFY_URL.replace(/\/+$/, "");
+  if (process.env.GOTIFY_TOKEN) env.gotifyToken = process.env.GOTIFY_TOKEN;
+  if (process.env.NTFY_URL) env.ntfyUrl = process.env.NTFY_URL.replace(/\/+$/, "");
+  if (process.env.NTFY_TOPIC) env.ntfyTopic = process.env.NTFY_TOPIC;
+  if (process.env.NTFY_TOKEN) env.ntfyToken = process.env.NTFY_TOKEN;
+  if (process.env.MEDIBROWSERR_QUIET_HOURS_ENABLED) {
+    env.quietHoursEnabled = process.env.MEDIBROWSERR_QUIET_HOURS_ENABLED === "true";
+  }
+  if (process.env.MEDIBROWSERR_QUIET_HOURS) {
+    env.quietHours = process.env.MEDIBROWSERR_QUIET_HOURS;
+  }
   const lang = process.env.MEDIBROWSERR_DEFAULT_LANGUAGE;
   if (lang === "pl" || lang === "en") env.defaultLanguage = lang;
   const interval = Number(process.env.MEDIBROWSERR_DEFAULT_INTERVAL);
@@ -121,6 +154,11 @@ export async function writeKey(key: string, value: unknown): Promise<void> {
 export async function getSettings(): Promise<AppSettings> {
   const stored = (await readKey<Partial<AppSettings>>("app")) ?? {};
   return { ...DEFAULTS, ...stored, ...envSettings() };
+}
+
+/** DB-stored values only (no env, no defaults) — what backups export. */
+export async function getStoredSettings(): Promise<Partial<AppSettings>> {
+  return (await readKey<Partial<AppSettings>>("app")) ?? {};
 }
 
 /** Settings plus the list of keys pinned by env vars (read-only in the GUI). */

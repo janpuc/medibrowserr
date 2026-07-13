@@ -16,7 +16,7 @@ import {
   SYSTEM_MESSAGES,
   type MessageLanguage,
 } from "@/server/notify/messages";
-import { sendPushover } from "@/server/notify/pushover";
+import { dispatchNotification } from "@/server/notify/dispatch";
 import {
   getMedicoverSession,
   getSettings,
@@ -177,16 +177,17 @@ export async function runMonitor(monitor: MonitorRow): Promise<RunResult> {
         newSlots[0]?.specialty?.name,
         newSlots,
         lang,
+        monitor.messageTemplate,
       );
-      const result = await sendPushover({
+      const result = await dispatchNotification({
         title,
         message,
         priority: monitor.pushoverPriority,
         monitorId: monitor.id,
         ...link,
       });
-      notified = result.ok;
-      if (result.ok) {
+      notified = result.sent.length > 0;
+      if (notified) {
         for (const slot of newSlots) {
           await db
             .update(schema.foundSlots)
@@ -207,7 +208,7 @@ export async function runMonitor(monitor: MonitorRow): Promise<RunResult> {
         taken.map(rowToSlot),
         lang,
       );
-      await sendPushover({
+      await dispatchNotification({
         title,
         message,
         // One step quieter than the monitor's own alerts.
@@ -255,7 +256,7 @@ async function notifyActionRequiredOnce(lang: MessageLanguage): Promise<void> {
   if (session.statusDetail?.includes("[notified]")) return;
   const msg = SYSTEM_MESSAGES[lang === "en" ? "en" : "pl"];
   const { appUrl } = await getSettings();
-  await sendPushover({
+  await dispatchNotification({
     title: msg.actionRequiredTitle,
     message: msg.actionRequiredBody,
     priority: 1,

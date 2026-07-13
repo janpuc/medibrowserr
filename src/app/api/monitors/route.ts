@@ -43,6 +43,7 @@ export async function POST(req: Request) {
         intervalMinutes: input.intervalMinutes,
         active: input.active,
         messageLanguage: input.messageLanguage,
+        messageTemplate: input.messageTemplate?.trim() || null,
         pushoverPriority: input.pushoverPriority,
         createdAt: Date.now(),
         nextRunAt: Date.now(), // run on the next scheduler tick

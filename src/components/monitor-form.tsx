@@ -81,8 +81,12 @@ export function MonitorForm({ existing }: { existing?: Monitor }) {
   const [messageLanguage, setMessageLanguage] = useState<"pl" | "en">(
     existing?.messageLanguage ?? "pl",
   );
+  const [messageTemplate, setMessageTemplate] = useState(existing?.messageTemplate ?? "");
   const [priority, setPriority] = useState(existing?.pushoverPriority ?? 0);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [msgPreview, setMsgPreview] = useState<{ title: string; message: string } | null>(null);
+  const [testBusy, setTestBusy] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<Filters | null>(null);
   const [filtersLoading, setFiltersLoading] = useState(true);
@@ -188,6 +192,7 @@ export function MonitorForm({ existing }: { existing?: Monitor }) {
     doctorLanguageId: language.length ? Number(language[0].id) : null,
     intervalMinutes: interval,
     messageLanguage,
+    messageTemplate: messageTemplate.trim() || null,
     pushoverPriority: priority,
     active: existing?.active ?? true,
   });
@@ -228,6 +233,60 @@ export function MonitorForm({ existing }: { existing?: Monitor }) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setPreviewBusy(false);
+    }
+  };
+
+  // Live preview of the exact notification this monitor would send.
+  const previewName =
+    name.trim() ||
+    [specialties[0]?.value, regions.map((r) => r.value).join("/")].filter(Boolean).join(" – ") ||
+    "My monitor";
+  useEffect(() => {
+    const t = setTimeout(() => {
+      api<{ title: string; message: string }>("/api/notify/monitor-test", {
+        method: "POST",
+        body: JSON.stringify({
+          name: previewName,
+          language: messageLanguage,
+          template: messageTemplate.trim() || null,
+          send: false,
+        }),
+      })
+        .then(setMsgPreview)
+        .catch(() => setMsgPreview(null));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [previewName, messageLanguage, messageTemplate]);
+
+  const sendTest = async () => {
+    setTestBusy(true);
+    setTestResult(null);
+    try {
+      const r = await api<{ sent: string[]; errors: { channel: string; error: string }[] }>(
+        "/api/notify/monitor-test",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            name: previewName,
+            language: messageLanguage,
+            template: messageTemplate.trim() || null,
+            priority,
+            send: true,
+          }),
+        },
+      );
+      const parts = [
+        ...r.sent.map((c) => `${c} ✓`),
+        ...r.errors.map((e) => `${e.channel} ✗ (${e.error})`),
+      ];
+      setTestResult(parts.length ? `Sent: ${parts.join(" · ")}` : "No channel configured.");
+    } catch (err) {
+      setTestResult(
+        (err as { payload?: { message?: string } }).payload?.message ??
+          (err instanceof Error ? err.message : String(err)),
+      );
+    } finally {
+      setTestBusy(false);
     }
   };
 
@@ -379,6 +438,39 @@ export function MonitorForm({ existing }: { existing?: Monitor }) {
               ))}
             </div>
           </Field>
+        </div>
+      </Card>
+
+      <Card className="space-y-4 p-5">
+        <h2 className="font-display text-lg font-semibold">Notification message</h2>
+        <Field
+          label="Custom line template (optional)"
+          hint="One line per found slot. Tokens: {datetime} {date} {time} {doctor} {clinic} {specialty}; \n for a line break. Empty = the default message."
+        >
+          <textarea
+            className={`${inputClass} h-20 font-mono text-[13px]`}
+            value={messageTemplate}
+            onChange={(e) => setMessageTemplate(e.target.value)}
+            placeholder={"📅 {date} {time} — {doctor}\\n🏥 {clinic}"}
+          />
+        </Field>
+        {msgPreview ? (
+          <div className="rounded-lg bg-paper p-4">
+            <p className="mb-1 font-mono text-[11px] uppercase tracking-wide text-ink-soft">
+              Preview (sample slots)
+            </p>
+            <p className="text-sm font-semibold">{msgPreview.title}</p>
+            <p className="mt-1 text-[13px] whitespace-pre-wrap text-ink-soft">
+              {msgPreview.message}
+            </p>
+          </div>
+        ) : null}
+        <div className="flex items-center gap-3">
+          <Button onClick={() => void sendTest()} disabled={testBusy}>
+            {testBusy ? <Spinner /> : null}
+            Send test notification
+          </Button>
+          {testResult ? <p className="text-[13px] text-ink-soft">{testResult}</p> : null}
         </div>
       </Card>
 

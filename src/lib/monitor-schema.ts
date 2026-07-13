@@ -21,6 +21,8 @@ export const monitorInputSchema = z.object({
   intervalMinutes: z.number().int().min(5).max(24 * 60).default(15),
   active: z.boolean().default(true),
   messageLanguage: z.enum(["pl", "en"]).default("pl"),
+  /** Optional per-slot line template: {datetime} {date} {time} {doctor} {clinic} {specialty}. */
+  messageTemplate: z.string().max(300).optional().nullable(),
   pushoverPriority: z.number().int().min(-2).max(2).default(0),
 });
 

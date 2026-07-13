@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS monitors (
   interval_minutes INTEGER NOT NULL DEFAULT 15,
   active INTEGER NOT NULL DEFAULT 1,
   message_language TEXT NOT NULL DEFAULT 'pl',
+  message_template TEXT,
   pushover_priority INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
   next_run_at INTEGER,
@@ -83,6 +84,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   monitor_id INTEGER,
   sent_at INTEGER NOT NULL,
+  channel TEXT,
   title TEXT NOT NULL,
   message TEXT NOT NULL,
   status TEXT NOT NULL,
@@ -136,6 +138,8 @@ function init(): NonNullable<GlobalWithDb["__medibrowserrDb"]> {
       for (const stmt of [
         "ALTER TABLE found_slots ADD COLUMN gone_at INTEGER",
         "ALTER TABLE found_slots ADD COLUMN gone_reason TEXT",
+        "ALTER TABLE notifications ADD COLUMN channel TEXT",
+        "ALTER TABLE monitors ADD COLUMN message_template TEXT",
       ]) {
         await client.execute(stmt).catch(() => {}); // duplicate column → no-op
       }

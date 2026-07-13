@@ -44,6 +44,8 @@ export const monitors = sqliteTable("monitors", {
   active: integer("active", { mode: "boolean" }).notNull().default(true),
   /** Notification template language: "pl" | "en". */
   messageLanguage: text("message_language").notNull().default("pl"),
+  /** Optional per-slot line template ({time} {date} {doctor} {clinic} {specialty}). */
+  messageTemplate: text("message_template"),
   /** Pushover priority -2..2 (see https://pushover.net/api#priority). */
   pushoverPriority: integer("pushover_priority").notNull().default(0),
   createdAt: integer("created_at").notNull(),
@@ -84,11 +86,13 @@ export const foundSlots = sqliteTable(
   (t) => [uniqueIndex("found_slots_monitor_dedupe").on(t.monitorId, t.dedupeKey)],
 );
 
-/** Log of outgoing notifications (Pushover). */
+/** Log of outgoing notifications, one row per channel attempt. */
 export const notifications = sqliteTable("notifications", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   monitorId: integer("monitor_id"),
   sentAt: integer("sent_at").notNull(),
+  /** "pushover" | "telegram" | "gotify" | "ntfy" | "none". */
+  channel: text("channel"),
   title: text("title").notNull(),
   message: text("message").notNull(),
   status: text("status").notNull(), // "sent" | "error"

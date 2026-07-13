@@ -3,6 +3,7 @@ import {
   buildGoneNotification,
   buildNotification,
   formatSlotDate,
+  renderSlotLine,
   SYSTEM_MESSAGES,
 } from "@/server/notify/messages";
 import type { Slot } from "@/server/medicover/types";
@@ -47,6 +48,35 @@ describe("buildNotification (default messages)", () => {
   it("caps the list and mentions the remainder", () => {
     const many = buildNotification("K", undefined, Array(10).fill(slot()), "en");
     expect(many.message).toContain("…and 4 more slots.");
+  });
+});
+
+describe("renderSlotLine (custom templates)", () => {
+  it("substitutes every token", () => {
+    const line = renderSlotLine(
+      slot(),
+      "pl",
+      "{date} {time} — {doctor} @ {clinic} ({specialty})",
+    );
+    expect(line).toBe(
+      "15.07.2026 10:30 — Anna Kowalska @ Warszawa Atrium (Kardiolog)",
+    );
+  });
+
+  it("supports \\n line breaks and {datetime}", () => {
+    expect(renderSlotLine(slot(), "en", "{datetime}\\n{doctor}")).toBe(
+      "15.07.2026 10:30\nAnna Kowalska",
+    );
+  });
+
+  it("falls back to the default line when the template is empty", () => {
+    expect(renderSlotLine(slot(), "pl", "  ")).toContain("📅 15.07.2026 10:30");
+  });
+
+  it("feeds through buildNotification", () => {
+    const res = buildNotification("K", undefined, [slot()], "pl", "{time} {doctor}");
+    expect(res.message).toContain("10:30 Anna Kowalska");
+    expect(res.message).not.toContain("📅");
   });
 });
 

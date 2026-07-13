@@ -50,6 +50,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       "intervalMinutes",
       "active",
       "messageLanguage",
+      "messageTemplate",
       "pushoverPriority",
     ] as const) {
       if (patch[key] !== undefined) set[key] = patch[key];

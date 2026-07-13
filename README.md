@@ -1,8 +1,7 @@
-<p align="center">
-  <img src="docs/logo.png" alt="medibrowserr logo" width="96" height="96" />
-</p>
-
-# medibrowserr
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo-wordmark-dark.png">
+  <img src="docs/logo-wordmark.png" alt="medibrowserr" width="380" />
+</picture>
 
 [![CI](https://github.com/janpuc/medibrowserr/actions/workflows/ci.yml/badge.svg)](https://github.com/janpuc/medibrowserr/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/janpuc/medibrowserr?display_name=tag)](https://github.com/janpuc/medibrowserr/releases)
@@ -11,8 +10,9 @@
 
 Self-hosted appointment watcher for **Medicover Poland**. It sweeps the
 Medicover OnLine (online24) API for free slots on your schedule, keeps the
-finds in SQLite, and pings you on **Pushover** the moment something new
-appears — with default messages in Polish or English, your pick per monitor.
+finds in SQLite, and pings you via **Pushover, Telegram, Gotify or ntfy** the
+moment something new appears — with default messages in Polish or English,
+your pick per monitor.
 
 Inspired by [medihunter](https://github.com/apqlzm/medihunter), rebuilt as a
 proper web app for self-hosting.
@@ -37,8 +37,11 @@ proper web app for self-hosting.
   your configured defaults. Narrow to specific clinics, doctors from the live
   dictionary or a "doctor name contains" filter, date/hour windows, doctor
   language, consultation vs diagnostic. **Preview results** before saving.
-- **Pushover notifications** with sensible default messages (PL/EN chosen when
-  you create the monitor), priority per monitor, test button in Settings.
+- **Notifications via Pushover, Telegram, Gotify and ntfy** — every configured
+  channel gets every alert. Default messages in PL/EN (chosen per monitor),
+  optional per-monitor message templates with live preview and a test-send
+  button, priority per monitor, optional **quiet hours** (overnight alerts
+  arrive silently instead of waking you).
   The lifecycle is noise-free by design:
   - new slots (or ones that came back after a cancellation) → one alert with
     the whole list;
@@ -54,6 +57,11 @@ proper web app for self-hosting.
 - **Appointments** — every caught slot as a waiting-room ticket, plus your
   booked visits from Medicover.
 - **SQLite** storage, single container, no external services.
+- **Prometheus `/metrics`** — monitors, slot lifecycle, notification results,
+  coverage index state (use `basic_auth` in your scrape config when
+  `MEDIBROWSERR_BASIC_AUTH` is set).
+- **Backup & restore** — settings + monitor configs as JSON from the Settings
+  page; imports never override env-pinned values.
 
 ## How login works (read this once)
 
@@ -115,7 +123,11 @@ overrides — a value set via env **wins over the GUI and shows up locked**
 | --- | --- |
 | `DATABASE_URL` | SQLite location (`sqlite://` or `file:` URL). Image default: `sqlite:///data/medibrowserr.db` |
 | `MEDICOVER_USER` / `MEDICOVER_PASS` | Medicover card number / password |
-| `PUSHOVER_TOKEN` / `PUSHOVER_USER` / `PUSHOVER_DEVICE` | Pushover app token / user key / device |
+| `PUSHOVER_TOKEN` / `PUSHOVER_USER` / `PUSHOVER_DEVICE` | Pushover: **app API token** / **your user key** / optional device |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Telegram bot token (@BotFather) and chat id |
+| `GOTIFY_URL` / `GOTIFY_TOKEN` | Gotify server URL and application token |
+| `NTFY_URL` / `NTFY_TOPIC` / `NTFY_TOKEN` | ntfy server (default `https://ntfy.sh`), topic, optional token |
+| `MEDIBROWSERR_QUIET_HOURS_ENABLED` / `MEDIBROWSERR_QUIET_HOURS` | Quiet hours (silent delivery), e.g. `true` / `23-7` |
 | `MEDIBROWSERR_DEFAULT_REGION_IDS` | Regions preselected in new monitors, comma-separated ids (e.g. `202` = Kraków) |
 | `MEDIBROWSERR_DEFAULT_CLINIC_IDS` | Clinics preselected in new monitors, comma-separated ids |
 | `MEDIBROWSERR_DEFAULT_LANGUAGE` | Default notification language, `pl` or `en` |

@@ -24,6 +24,7 @@ export interface Monitor {
   intervalMinutes: number;
   active: boolean;
   messageLanguage: "pl" | "en";
+  messageTemplate: string | null;
   pushoverPriority: number;
   createdAt: number;
   nextRunAt: number | null;
