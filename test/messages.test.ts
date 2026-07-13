@@ -27,8 +27,7 @@ describe("buildNotification (default messages)", () => {
   it("writes the Polish default with correct plural forms", () => {
     const one = buildNotification("Kardiolog", "Kardiolog", [slot()], "pl");
     expect(one.title).toBe("🩺 Kardiolog: nowy termin");
-    expect(one.message).toContain("15.07.2026 10:30");
-    expect(one.message).toContain("Anna Kowalska");
+    expect(one.message).toContain("15.07.2026 10:30 — Anna Kowalska");
     expect(one.message).toContain("Warszawa Atrium");
     expect(one.message).toContain("Zarezerwuj szybko");
 
@@ -38,16 +37,42 @@ describe("buildNotification (default messages)", () => {
     expect(seven.title).toContain("7 nowych terminów");
   });
 
+  it("keeps emoji to the title only", () => {
+    const res = buildNotification("K", "Kardiolog", [slot(), slot()], "pl");
+    const emojiCount = [...res.message].filter((ch) => /\p{Extended_Pictographic}/u.test(ch)).length;
+    expect(emojiCount).toBe(0);
+    expect(res.title).toContain("🩺");
+  });
+
   it("writes the English default", () => {
-    const res = buildNotification("Cardiology watch", "Kardiolog", [slot()], "en");
-    expect(res.title).toBe("🩺 Cardiology watch: new appointment");
+    const res = buildNotification("Cardiology watch", "Kardiolog", [slot(), slot()], "en");
+    expect(res.title).toBe("🩺 Cardiology watch: 2 new appointments");
     expect(res.message).toContain("Specialty: Kardiolog");
     expect(res.message).toContain("Book quickly");
   });
 
-  it("caps the list and mentions the remainder", () => {
-    const many = buildNotification("K", undefined, Array(10).fill(slot()), "en");
-    expect(many.message).toContain("…and 4 more slots.");
+  it("stays tidy for a single slot (no specialty header)", () => {
+    const res = buildNotification("K", "Kardiolog", [slot()], "en");
+    expect(res.message).not.toContain("Specialty:");
+    expect(res.message.split("\n\n")).toHaveLength(2); // slot block + footer
+  });
+
+  it("summarizes big batches with the latest date (50 slots)", () => {
+    const many = Array.from({ length: 50 }, (_, i) =>
+      slot({ appointmentDate: `2026-07-${String(15 + (i % 14)).padStart(2, "0")}T10:30:00` }),
+    ).sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate));
+    const res = buildNotification("K", undefined, many, "en");
+    expect(res.title).toContain("50 new appointments");
+    expect(res.message).toContain("…and 44 more, latest 28.07.2026.");
+    // 6 slot blocks + summary + footer — not 100 lines of noise.
+    expect(res.message.split("\n").length).toBeLessThanOrEqual(22);
+  });
+
+  it("annotates only non-standard visit types", () => {
+    expect(renderSlotLine(slot(), "pl", null)).not.toContain("wizyta");
+    expect(
+      renderSlotLine(slot({ visitType: "PhoneConsultation" }), "pl", null),
+    ).toContain("(telekonsultacja)");
   });
 });
 
@@ -70,7 +95,9 @@ describe("renderSlotLine (custom templates)", () => {
   });
 
   it("falls back to the default line when the template is empty", () => {
-    expect(renderSlotLine(slot(), "pl", "  ")).toContain("📅 15.07.2026 10:30");
+    expect(renderSlotLine(slot(), "pl", "  ")).toBe(
+      "15.07.2026 10:30 — Anna Kowalska\nWarszawa Atrium",
+    );
   });
 
   it("feeds through buildNotification", () => {

@@ -142,6 +142,36 @@ overrides — a value set via env **wins over the GUI and shows up locked**
 Region/clinic ids are visible in the Settings pickers (or via
 `GET /api/medicover/filters`).
 
+## Notification channels
+
+Every configured channel receives every alert. Configure them in Settings →
+Notifications (each has its own Test button) or via env vars.
+
+**Pushover** — create an *application* at
+[pushover.net/apps](https://pushover.net/apps/build); its **API Token/Key**
+(~30 chars, starts with `a`) goes into "App API token". Your **User Key**
+(starts with `u`) is on the top-right of the
+[dashboard](https://pushover.net). Both are required — mixing them up is the
+#1 setup mistake. Device name is optional (empty = all devices).
+
+**Telegram** — create a bot with [@BotFather](https://t.me/BotFather) and use
+its token (`12345:AAaa…`). Send your bot one message first (bots can't
+initiate chats), then get your numeric chat id from
+[@userinfobot](https://t.me/userinfobot). Group chats use ids starting with
+`-100`.
+
+**Gotify** — your server URL plus an *application* token (create one under
+Apps in the Gotify UI; starts with `A`).
+
+**ntfy** — works with [ntfy.sh](https://ntfy.sh) out of the box: pick a topic
+and subscribe to it in the app. On public servers anyone who knows the topic
+name can read it, so make it unguessable (e.g. `medibrowserr-x7k2m9`). Access
+token (`tk_…`) only needed for protected topics/servers.
+
+**Quiet hours** — when enabled (default `23-7`), alerts during the window are
+delivered *silently* (lowest priority on every channel) instead of being
+dropped — you'll see them in the morning without being woken at 3 am.
+
 ## Staying under Medicover's rate limits
 
 medibrowserr talks to the same API your browser does, and Medicover's WAF

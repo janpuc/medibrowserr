@@ -11,18 +11,21 @@ export function formatSlotDate(iso: string): string {
 }
 
 const VISIT_TYPE_LABELS: Record<MessageLanguage, Record<string, string>> = {
-  pl: { Center: "wizyta w centrum", PhoneConsultation: "telekonsultacja", OnlineConsultation: "konsultacja online" },
-  en: { Center: "in-person", PhoneConsultation: "phone consultation", OnlineConsultation: "online consultation" },
+  pl: { PhoneConsultation: "telekonsultacja", OnlineConsultation: "konsultacja online" },
+  en: { PhoneConsultation: "phone consultation", OnlineConsultation: "online consultation" },
 };
 
+/** Default per-slot line: date/time + doctor, clinic below. In-person visits
+ * are the norm, so only phone/online consultations get annotated. */
 export function slotLine(slot: Slot, lang: MessageLanguage): string {
-  const parts = [
-    `📅 ${formatSlotDate(slot.appointmentDate)}`,
-    slot.doctor?.name ? `👨‍⚕️ ${slot.doctor.name}` : undefined,
-    slot.clinic?.name ? `🏥 ${slot.clinic.name}` : undefined,
-  ].filter(Boolean);
-  const visit = slot.visitType && VISIT_TYPE_LABELS[lang][slot.visitType];
-  return parts.join("\n") + (visit ? `\n💬 ${visit}` : "");
+  const head = [formatSlotDate(slot.appointmentDate), slot.doctor?.name]
+    .filter(Boolean)
+    .join(" — ");
+  const visit = slot.visitType ? VISIT_TYPE_LABELS[lang][slot.visitType] : undefined;
+  const clinicLine = [slot.clinic?.name, visit ? `(${visit})` : undefined]
+    .filter(Boolean)
+    .join(" ");
+  return clinicLine ? `${head}\n${clinicLine}` : head;
 }
 
 /** Tokens available in per-monitor line templates. */
@@ -51,6 +54,20 @@ export function renderSlotLine(
  * Default notification messages ("sensible defaults") in Polish and English.
  * The language is chosen per monitor when the notification rule is created.
  */
+/** How many slots are written out in full before summarizing the rest. */
+const MAX_LINES = 6;
+
+/** "…and 44 more, latest 28.07" — keeps 50-slot alerts readable. */
+function moreSummary(rest: Slot[], lang: MessageLanguage): string {
+  if (!rest.length) return "";
+  const latest = rest[rest.length - 1]?.appointmentDate;
+  const latestDay = latest ? formatSlotDate(latest).split(" ")[0] : undefined;
+  if (lang === "pl") {
+    return `\n\n…i jeszcze ${rest.length} — najpóźniejszy ${latestDay ?? "?"}.`;
+  }
+  return `\n\n…and ${rest.length} more, latest ${latestDay ?? "?"}.`;
+}
+
 export function buildNotification(
   monitorName: string,
   specialtyName: string | undefined,
@@ -58,9 +75,14 @@ export function buildNotification(
   lang: MessageLanguage,
   lineTemplate?: string | null,
 ): { title: string; message: string } {
-  const shown = slots.slice(0, 6);
-  const more = slots.length - shown.length;
+  const shown = slots.slice(0, MAX_LINES);
+  const rest = slots.slice(MAX_LINES);
   const lines = shown.map((s) => renderSlotLine(s, lang, lineTemplate)).join("\n\n");
+  // The specialty header only earns its line when several slots follow.
+  const header =
+    specialtyName && slots.length > 1
+      ? `${lang === "pl" ? "Specjalizacja" : "Specialty"}: ${specialtyName}\n\n`
+      : "";
 
   if (lang === "pl") {
     const count =
@@ -72,9 +94,9 @@ export function buildNotification(
     return {
       title: `🩺 ${monitorName}: ${count}`,
       message:
-        `${specialtyName ? `Specjalizacja: ${specialtyName}\n\n` : ""}` +
+        header +
         lines +
-        (more > 0 ? `\n\n…i jeszcze ${more} innych terminów.` : "") +
+        moreSummary(rest, lang) +
         `\n\nZarezerwuj szybko w aplikacji Medicover, zanim ktoś Cię uprzedzi!`,
     };
   }
@@ -82,9 +104,9 @@ export function buildNotification(
   return {
     title: `🩺 ${monitorName}: ${count}`,
     message:
-      `${specialtyName ? `Specialty: ${specialtyName}\n\n` : ""}` +
+      header +
       lines +
-      (more > 0 ? `\n\n…and ${more} more slots.` : "") +
+      moreSummary(rest, lang) +
       `\n\nBook quickly in the Medicover app before someone else does!`,
   };
 }
@@ -98,8 +120,8 @@ export function buildGoneNotification(
   slots: Slot[],
   lang: MessageLanguage,
 ): { title: string; message: string } {
-  const shown = slots.slice(0, 6);
-  const more = slots.length - shown.length;
+  const shown = slots.slice(0, MAX_LINES);
+  const rest = slots.slice(MAX_LINES);
   const lines = shown.map((s) => slotLine(s, lang)).join("\n\n");
 
   if (lang === "pl") {
@@ -113,7 +135,7 @@ export function buildGoneNotification(
       title: `📉 ${monitorName}: ${count}`,
       message:
         lines +
-        (more > 0 ? `\n\n…i jeszcze ${more} innych.` : "") +
+        moreSummary(rest, lang) +
         `\n\nKtoś był szybszy — te terminy są już zajęte.`,
     };
   }
@@ -122,7 +144,7 @@ export function buildGoneNotification(
     title: `📉 ${monitorName}: ${count}`,
     message:
       lines +
-      (more > 0 ? `\n\n…and ${more} more.` : "") +
+      moreSummary(rest, lang) +
       `\n\nSomeone was quicker — these slots are already taken.`,
   };
 }

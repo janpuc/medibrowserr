@@ -106,11 +106,23 @@ const CHANNELS: { name: string; configured: (s: AppSettings) => boolean; send: C
   { name: "ntfy", configured: (s) => !!(s.ntfyUrl && s.ntfyTopic), send: sendViaNtfy },
 ];
 
+export type ChannelName = "pushover" | "telegram" | "gotify" | "ntfy";
+
+/** Which channels have working credentials right now. */
+export async function configuredChannels(): Promise<ChannelName[]> {
+  const settings = await getSettings();
+  return CHANNELS.filter((c) => c.configured(settings)).map((c) => c.name as ChannelName);
+}
+
 /**
- * Sends a notification to every configured channel. During quiet hours the
- * priority is capped so delivery is silent rather than dropped.
+ * Sends a notification to every configured channel (or just `only`).
+ * During quiet hours the priority is capped so delivery is silent
+ * rather than dropped.
  */
-export async function dispatchNotification(n: OutgoingNotification): Promise<DispatchResult> {
+export async function dispatchNotification(
+  n: OutgoingNotification,
+  opts: { only?: ChannelName[] } = {},
+): Promise<DispatchResult> {
   const settings = await getSettings();
   const outgoing = { ...n };
   if (
@@ -120,7 +132,11 @@ export async function dispatchNotification(n: OutgoingNotification): Promise<Dis
     outgoing.priority = Math.min(outgoing.priority ?? 0, QUIET_PRIORITY_CAP);
   }
 
-  const active = CHANNELS.filter((c) => c.configured(settings));
+  const active = CHANNELS.filter(
+    (c) =>
+      c.configured(settings) &&
+      (!opts.only || opts.only.includes(c.name as ChannelName)),
+  );
   const result: DispatchResult = { sent: [], errors: [], unconfigured: active.length === 0 };
 
   const db = await getDb();

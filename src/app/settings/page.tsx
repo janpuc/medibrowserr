@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Lock, Upload } from "lucide-react";
+import { Download, Lock, Plus, Send, Upload } from "lucide-react";
 import { api, usePoll, type MedicoverStatus } from "@/lib/client";
 import { Button, Card, Field, PageHeader, Spinner, inputClass } from "@/components/ui";
 import { ConnectWizard } from "@/components/connect-wizard";
@@ -66,6 +66,66 @@ interface Filters {
  */
 const CLINIC_SEED_SPECIALTY = "9";
 
+type ChannelKey = "pushover" | "telegram" | "gotify" | "ntfy";
+
+interface ChannelField {
+  field: TextField;
+  label: string;
+  env: string;
+  hint?: string;
+  type?: string;
+  placeholder?: string;
+}
+
+/** Concise in-app hints; the README carries the full setup guides. */
+const CHANNELS: { key: ChannelKey; title: string; grid: string; fields: ChannelField[] }[] = [
+  {
+    key: "pushover",
+    title: "Pushover",
+    grid: "sm:grid-cols-3",
+    fields: [
+      { field: "pushoverToken", label: "App API token", env: "PUSHOVER_TOKEN", hint: "From pushover.net/apps.", type: "password" },
+      { field: "pushoverUser", label: "User key", env: "PUSHOVER_USER", hint: "From your dashboard." },
+      { field: "pushoverDevice", label: "Device", env: "PUSHOVER_DEVICE", hint: "Empty = all." },
+    ],
+  },
+  {
+    key: "telegram",
+    title: "Telegram",
+    grid: "sm:grid-cols-2",
+    fields: [
+      { field: "telegramBotToken", label: "Bot token", env: "TELEGRAM_BOT_TOKEN", hint: "From @BotFather.", type: "password" },
+      { field: "telegramChatId", label: "Chat id", env: "TELEGRAM_CHAT_ID", placeholder: "123456789" },
+    ],
+  },
+  {
+    key: "gotify",
+    title: "Gotify",
+    grid: "sm:grid-cols-2",
+    fields: [
+      { field: "gotifyUrl", label: "Server URL", env: "GOTIFY_URL", placeholder: "https://gotify.example.com" },
+      { field: "gotifyToken", label: "App token", env: "GOTIFY_TOKEN", type: "password" },
+    ],
+  },
+  {
+    key: "ntfy",
+    title: "ntfy",
+    grid: "sm:grid-cols-3",
+    fields: [
+      { field: "ntfyUrl", label: "Server URL", env: "NTFY_URL", placeholder: "https://ntfy.sh" },
+      { field: "ntfyTopic", label: "Topic", env: "NTFY_TOPIC", hint: "Pick something unguessable." },
+      { field: "ntfyToken", label: "Token", env: "NTFY_TOKEN", hint: "Optional.", type: "password" },
+    ],
+  },
+];
+
+const isChannelConfigured = (s: Settings): Record<ChannelKey, boolean> => ({
+  pushover: !!(s.pushoverToken && s.pushoverUser),
+  telegram: !!(s.telegramBotToken && s.telegramChatId),
+  gotify: !!(s.gotifyUrl && s.gotifyToken),
+  ntfy: !!(s.ntfyUrl && s.ntfyTopic),
+});
+
 export default function SettingsPage() {
   const status = usePoll<MedicoverStatus>("/api/medicover/status", 15_000);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -73,7 +133,14 @@ export default function SettingsPage() {
   const [uaDefault, setUaDefault] = useState("");
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
-  const [testBusy, setTestBusy] = useState(false);
+  const [testBusy, setTestBusy] = useState<ChannelKey | null>(null);
+  const [testResults, setTestResults] = useState<Partial<Record<ChannelKey, string>>>({});
+  const [shownChannels, setShownChannels] = useState<Record<ChannelKey, boolean>>({
+    pushover: false,
+    telegram: false,
+    gotify: false,
+    ntfy: false,
+  });
   const [dicts, setDicts] = useState<Filters | null>(null);
   const [dictsLoading, setDictsLoading] = useState(false);
   const [version, setVersion] = useState<string | null>(null);
@@ -85,6 +152,16 @@ export default function SettingsPage() {
         setSettings(p.settings);
         setLocked(p.locked);
         setUaDefault(p.uaDefault);
+        // Configured channels start expanded; the rest hide behind "add".
+        setShownChannels((prev) => {
+          const configured = isChannelConfigured(p.settings);
+          return {
+            pushover: prev.pushover || configured.pushover,
+            telegram: prev.telegram || configured.telegram,
+            gotify: prev.gotify || configured.gotify,
+            ntfy: prev.ntfy || configured.ntfy,
+          };
+        });
       })
       .catch(() => setSettings(null));
     void api<{ version: string }>("/api/health")
@@ -160,28 +237,30 @@ export default function SettingsPage() {
     }
   };
 
-  const testNotifications = async () => {
-    setTestBusy(true);
-    setFlash(null);
+  const testChannel = async (channel: ChannelKey) => {
+    setTestBusy(channel);
+    setTestResults((prev) => ({ ...prev, [channel]: undefined }));
     try {
       const r = await api<{ sent: string[]; errors: { channel: string; error: string }[] }>(
         "/api/notify/test",
         {
           method: "POST",
-          body: JSON.stringify({ language: settings?.defaultLanguage ?? "pl" }),
+          body: JSON.stringify({ language: settings?.defaultLanguage ?? "pl", channel }),
         },
       );
-      const parts = [
-        ...r.sent.map((c) => `${c} ✓`),
-        ...r.errors.map((e) => `${e.channel} ✗ (${e.error})`),
-      ];
-      setFlash(`Test sent — ${parts.join(" · ")}`);
+      const err = r.errors.find((e) => e.channel === channel);
+      setTestResults((prev) => ({
+        ...prev,
+        [channel]: err ? `✗ ${err.error}` : "✓ delivered",
+      }));
     } catch (err) {
-      setFlash(
-        `Test failed: ${(err as { payload?: { message?: string } }).payload?.message ?? (err instanceof Error ? err.message : err)}`,
-      );
+      setTestResults((prev) => ({
+        ...prev,
+        [channel]:
+          `✗ ${(err as { payload?: { message?: string } }).payload?.message ?? (err instanceof Error ? err.message : err)}`,
+      }));
     } finally {
-      setTestBusy(false);
+      setTestBusy(null);
     }
   };
 
@@ -225,6 +304,7 @@ export default function SettingsPage() {
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     setSettings({ ...settings, [key]: value });
   const isLocked = (key: keyof Settings) => locked.includes(key);
+  const channelConfigured = isChannelConfigured(settings);
 
   /**
    * Text input that grays out when the value is pinned by an env var.
@@ -297,120 +377,69 @@ export default function SettingsPage() {
         <section>
           <h2 className="mb-3 font-display text-lg font-semibold">Notifications</h2>
           <p className="mb-3 max-w-2xl text-sm text-ink-soft">
-            Every configured channel gets every alert. Set up at least one — Pushover is
-            the most battle-tested here.
+            Every configured channel gets every alert — see the README for setup guides.
           </p>
           <div className="space-y-3">
-            <Card className="space-y-4 p-5">
-              <h3 className="font-medium">Pushover</h3>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Field
-                  label="API token (of your Pushover app)"
-                  hint={
-                    envHint("pushoverToken", "PUSHOVER_TOKEN") ??
-                    "Create an application at pushover.net/apps — this is its API Token/Key, ~30 chars starting with 'a'."
-                  }
-                >
-                  {lockableInput("pushoverToken", "password")}
-                </Field>
-                <Field
-                  label="User key (your account)"
-                  hint={
-                    envHint("pushoverUser", "PUSHOVER_USER") ??
-                    "Top-right on the pushover.net dashboard, ~30 chars starting with 'u'. Both fields are required."
-                  }
-                >
-                  {lockableInput("pushoverUser")}
-                </Field>
-                <Field
-                  label="Device (optional)"
-                  hint={envHint("pushoverDevice", "PUSHOVER_DEVICE") ?? "Empty = all devices."}
-                >
-                  {lockableInput("pushoverDevice")}
-                </Field>
-              </div>
-            </Card>
+            {CHANNELS.filter((c) => shownChannels[c.key]).map((c) => (
+              <Card key={c.key} className="space-y-4 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-medium">{c.title}</h3>
+                  <div className="flex items-center gap-3">
+                    {testResults[c.key] ? (
+                      <span className="text-[13px] text-ink-soft">{testResults[c.key]}</span>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      disabled={testBusy === c.key || !channelConfigured[c.key]}
+                      title={channelConfigured[c.key] ? `Send a test via ${c.title}` : "Save credentials first"}
+                      onClick={() => void testChannel(c.key)}
+                    >
+                      {testBusy === c.key ? <Spinner className="h-3.5 w-3.5" /> : <Send size={13} />}
+                      Test
+                    </Button>
+                  </div>
+                </div>
+                <div className={`grid gap-4 ${c.grid}`}>
+                  {c.fields.map((f) => (
+                    <Field
+                      key={f.field}
+                      label={f.label}
+                      hint={envHint(f.field, f.env) ?? f.hint}
+                    >
+                      {lockableInput(f.field, f.type ?? "text", f.placeholder)}
+                    </Field>
+                  ))}
+                </div>
+              </Card>
+            ))}
 
-            <Card className="space-y-4 p-5">
-              <h3 className="font-medium">Telegram</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field
-                  label="Bot token"
-                  hint={
-                    envHint("telegramBotToken", "TELEGRAM_BOT_TOKEN") ??
-                    "From @BotFather, looks like 12345:AAaa… — the bot must have messaged you (or be in the chat) first."
-                  }
-                >
-                  {lockableInput("telegramBotToken", "password")}
-                </Field>
-                <Field
-                  label="Chat id"
-                  hint={
-                    envHint("telegramChatId", "TELEGRAM_CHAT_ID") ??
-                    "Your numeric chat/user id (ask @userinfobot), or a group id starting with -100."
-                  }
-                >
-                  {lockableInput("telegramChatId", "text", "e.g. 123456789")}
-                </Field>
-              </div>
-            </Card>
-
-            <Card className="space-y-4 p-5">
-              <h3 className="font-medium">Gotify</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field
-                  label="Server URL"
-                  hint={envHint("gotifyUrl", "GOTIFY_URL") ?? "Your Gotify instance, e.g. https://gotify.home.lan."}
-                >
-                  {lockableInput("gotifyUrl", "text", "https://gotify.example.com")}
-                </Field>
-                <Field
-                  label="Application token"
-                  hint={
-                    envHint("gotifyToken", "GOTIFY_TOKEN") ??
-                    "Create an application in Gotify — this is its token (starts with 'A')."
-                  }
-                >
-                  {lockableInput("gotifyToken", "password")}
-                </Field>
-              </div>
-            </Card>
-
-            <Card className="space-y-4 p-5">
-              <h3 className="font-medium">ntfy</h3>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Field
-                  label="Server URL"
-                  hint={envHint("ntfyUrl", "NTFY_URL") ?? "ntfy.sh works out of the box, or your own instance."}
-                >
-                  {lockableInput("ntfyUrl", "text", "https://ntfy.sh")}
-                </Field>
-                <Field
-                  label="Topic"
-                  hint={
-                    envHint("ntfyTopic", "NTFY_TOPIC") ??
-                    "Anyone who knows the topic name can read it on public servers — pick something unguessable."
-                  }
-                >
-                  {lockableInput("ntfyTopic", "text", "medibrowserr-x7k2m")}
-                </Field>
-                <Field
-                  label="Access token (optional)"
-                  hint={envHint("ntfyToken", "NTFY_TOKEN") ?? "Only for protected topics (tk_…)."}
-                >
-                  {lockableInput("ntfyToken", "password")}
-                </Field>
-              </div>
-            </Card>
+            {CHANNELS.some((c) => !shownChannels[c.key]) ? (
+              <Card className="flex flex-wrap items-center gap-2 px-5 py-3.5">
+                <span className="text-[13px] text-ink-soft">
+                  {CHANNELS.every((c) => !shownChannels[c.key])
+                    ? "No channel configured yet — add one:"
+                    : "Add another channel:"}
+                </span>
+                {CHANNELS.filter((c) => !shownChannels[c.key]).map((c) => (
+                  <Button
+                    key={c.key}
+                    size="sm"
+                    onClick={() => setShownChannels((prev) => ({ ...prev, [c.key]: true }))}
+                  >
+                    <Plus size={13} /> {c.title}
+                  </Button>
+                ))}
+              </Card>
+            ) : null}
 
             <Card className="space-y-4 p-5">
               <h3 className="font-medium">Quiet hours</h3>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field
-                  label="Silence notifications overnight"
+                  label="Silence alerts overnight"
                   hint={
                     envHint("quietHoursEnabled", "MEDIBROWSERR_QUIET_HOURS_ENABLED") ??
-                    "Alerts still arrive during quiet hours — just silently (lowest priority), so nothing is missed."
+                    "Alerts still arrive, just silently."
                   }
                 >
                   <select
@@ -425,17 +454,12 @@ export default function SettingsPage() {
                 </Field>
                 <Field
                   label="Hours (local time)"
-                  hint={envHint("quietHours", "MEDIBROWSERR_QUIET_HOURS") ?? 'Format "start-end", may wrap midnight.'}
+                  hint={envHint("quietHours", "MEDIBROWSERR_QUIET_HOURS") ?? "May wrap midnight."}
                 >
                   {lockableInput("quietHours", "text", "23-7")}
                 </Field>
               </div>
             </Card>
-
-            <Button onClick={() => void testNotifications()} disabled={testBusy}>
-              {testBusy ? <Spinner /> : null}
-              Send test to all configured channels
-            </Button>
           </div>
         </section>
 
