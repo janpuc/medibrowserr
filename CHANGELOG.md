@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/janpuc/medibrowserr/compare/v1.1.0...v1.2.0) (2026-07-13)
+
+
+### Features
+
+* multi-channel notifications, quiet hours, /metrics, message templates, backup ([14f25c9](https://github.com/janpuc/medibrowserr/commit/14f25c9fa48b69ab1db988cb67471e6d256fb5b3))
+* notification overhaul — calmer messages, per-channel tests, tidy settings ([be0fee1](https://github.com/janpuc/medibrowserr/commit/be0fee1503e0f5445ce4901c52d572b470f9af13))
+
 ## [1.1.0](https://github.com/janpuc/medibrowserr/compare/v1.0.0...v1.1.0) (2026-07-13)
 
 
