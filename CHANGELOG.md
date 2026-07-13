@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/janpuc/medibrowserr/compare/v1.0.0...v1.1.0) (2026-07-13)
+
+
+### Features
+
+* rate-limit-safe coverage crawl, pause/resume, UA override, logo & screenshots ([ffefaba](https://github.com/janpuc/medibrowserr/commit/ffefaba8ff0d9ebd1e33d5afb72d18d1c7f8238a))
+
+
+### Bug Fixes
+
+* settings inputs reversed text and lost focus; pickers can't duplicate selections ([33d7ca9](https://github.com/janpuc/medibrowserr/commit/33d7ca9408d3f5fa7d7d359bb0f5d2133a5596b8))
+
 ## [1.0.0](https://github.com/janpuc/medibrowserr/compare/v0.1.0...v1.0.0) (2026-07-13)
 
 
