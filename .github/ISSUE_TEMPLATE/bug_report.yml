@@ -1,0 +1,50 @@
+name: Bug report
+description: Something broke — a monitor, the login, notifications…
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! A few details make most bugs fixable quickly.
+        **Never paste your Medicover password, tokens or full cookies.**
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Image tag or app version (Settings footer / `GET /api/health`).
+      placeholder: "1.0.0 / edge-a1b2c3d"
+    validations:
+      required: true
+  - type: dropdown
+    id: setup
+    attributes:
+      label: How are you running it?
+      options:
+        - Docker / docker-compose
+        - Kubernetes
+        - npm run dev / node
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Relevant container logs (`docker logs medibrowserr`) and/or the error
+        shown in the UI. Redact anything personal.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Quick checks
+      options:
+        - label: The Medicover account is connected (Settings shows "connected")
+        - label: I can log in to online24.medicover.pl in a browser with the same credentials

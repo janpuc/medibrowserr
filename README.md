@@ -1,5 +1,10 @@
 # medibrowserr
 
+[![CI](https://github.com/janpuc/medibrowserr/actions/workflows/ci.yml/badge.svg)](https://github.com/janpuc/medibrowserr/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/janpuc/medibrowserr?display_name=tag)](https://github.com/janpuc/medibrowserr/releases)
+[![Image](https://img.shields.io/badge/ghcr.io-janpuc%2Fmedibrowserr-blue)](https://ghcr.io/janpuc/medibrowserr)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-green)](LICENSE)
+
 Self-hosted appointment watcher for **Medicover Poland**. It sweeps the
 Medicover OnLine (online24) API for free slots on your schedule, keeps the
 finds in SQLite, and pings you on **Pushover** the moment something new
@@ -125,6 +130,12 @@ use [Conventional Commits](https://www.conventionalcommits.org) (`feat:`,
 `fix:`…) on `main`, merge the release PR it opens, and CI publishes
 `ghcr.io/<owner>/medibrowserr` with `:X.Y.Z`, `:X.Y`, `:X`, `:latest` tags.
 Every push to `main` also publishes `:edge` + `:sha-<short>` for the brave.
+
+## Contributing & security
+
+PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) (TL;DR: Conventional
+Commit titles, tests green, no secrets). Security reports go through
+[SECURITY.md](SECURITY.md), not public issues.
 
 ## License
 

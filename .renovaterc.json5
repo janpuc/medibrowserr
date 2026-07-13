@@ -1,0 +1,18 @@
+{
+  // Enable by installing the Renovate GitHub App on the repo.
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended", ":semanticCommits"],
+  labels: ["dependencies"],
+  // Keep noise low for a homelab project.
+  schedule: ["before 6am on saturday"],
+  prConcurrentLimit: 5,
+  lockFileMaintenance: { enabled: true, schedule: ["before 6am on the first day of the month"] },
+  packageRules: [
+    {
+      // Dev tooling patches/minors can auto-merge once CI is green.
+      matchDepTypes: ["devDependencies"],
+      matchUpdateTypes: ["minor", "patch"],
+      automerge: true,
+    },
+  ],
+}
