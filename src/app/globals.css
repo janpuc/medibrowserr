@@ -10,19 +10,45 @@
   --color-line: #dde5ec;
   --color-clinic: #0b5fa5;
   --color-clinic-deep: #094b83;
+  --color-clinic-hover: #094b83;
   --color-clinic-wash: #eaf2f9;
   --color-found: #0e7d5d;
+  --color-found-bright: #4ad39e;
   --color-found-wash: #e9f5f0;
   --color-alert: #b0431f;
   --color-alert-wash: #f9ede8;
   --color-amber: #9a6b15;
   --color-amber-wash: #f8f1e2;
+  /* The departures-board strip and modal scrim stay dark in both themes. */
+  --color-board: #12283e;
+  --color-scrim: #0b1420;
 
   --font-display: var(--font-geist), system-ui, sans-serif;
   --font-sans: var(--font-geist), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
   --shadow-card: 0 1px 2px rgb(18 40 62 / 0.05), 0 4px 16px -8px rgb(18 40 62 / 0.08);
+}
+
+/* Dark theme: same tokens, night-shift values. Applied via .dark on <html>. */
+.dark {
+  --color-paper: #0d151f;
+  --color-surface: #16202c;
+  --color-ink: #e6edf4;
+  --color-ink-soft: #90a3b5;
+  --color-line: #273545;
+  --color-clinic: #2f86d6;
+  --color-clinic-deep: #79b7ef;
+  --color-clinic-hover: #2470b8;
+  --color-clinic-wash: #17293c;
+  --color-found: #33b389;
+  --color-found-wash: #132a21;
+  --color-alert: #e0774f;
+  --color-alert-wash: #34211b;
+  --color-amber: #d9a441;
+  --color-amber-wash: #2e2514;
+  --color-board: #1a2635;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.35), 0 4px 16px -8px rgb(0 0 0 / 0.45);
 }
 
 html {
@@ -81,4 +107,12 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-clinic);
   outline-offset: 2px;
+}
+
+/* Native form controls follow the active theme (date pickers, selects…). */
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
 }

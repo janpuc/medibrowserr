@@ -1,5 +1,6 @@
 import "server-only";
 import { and, eq, isNull, lte, or } from "drizzle-orm";
+import { autoSeedIfStale } from "@/server/coverage/seeder";
 import { getDb, schema } from "@/server/db";
 import { runMonitor } from "./engine";
 
@@ -24,6 +25,8 @@ export function startScheduler(): void {
     if (state.running) return; // don't overlap slow runs
     state.running = true;
     try {
+      // Keep the local coverage index fresh (no-op unless connected & stale).
+      await autoSeedIfStale().catch(() => {});
       const db = await getDb();
       const due = await db
         .select()

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Activity, CalendarSearch, ShieldCheck, Settings } from "lucide-react";
 import clsx from "clsx";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const items = [
   { href: "/", label: "Monitors", icon: Activity },
@@ -53,6 +54,9 @@ export function Nav() {
           );
         })}
       </nav>
+      <div className="px-2 pb-3 sm:px-3">
+        <ThemeToggle />
+      </div>
       <p className="hidden px-6 pb-6 font-mono text-[11px] text-ink-soft sm:block">
         watching Medicover
         <br />

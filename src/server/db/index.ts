@@ -84,11 +84,28 @@ CREATE TABLE IF NOT EXISTS notifications (
   status TEXT NOT NULL,
   error TEXT
 );
-CREATE TABLE IF NOT EXISTS dict_cache (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL,
-  fetched_at INTEGER NOT NULL
+CREATE TABLE IF NOT EXISTS coverage_services (
+  service_id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  code TEXT,
+  description TEXT,
+  verdict TEXT,
+  referral_required INTEGER,
+  discount INTEGER,
+  fixed_payment INTEGER,
+  volume_limit INTEGER,
+  volume_used INTEGER,
+  value_limit INTEGER,
+  value_used INTEGER,
+  product_name TEXT,
+  plan_name TEXT,
+  remarks TEXT,
+  summary_json TEXT,
+  catalog_at INTEGER NOT NULL,
+  fetched_at INTEGER
 );
+CREATE INDEX IF NOT EXISTS coverage_services_verdict ON coverage_services (verdict);
+CREATE INDEX IF NOT EXISTS coverage_services_name ON coverage_services (name);
 `;
 
 type GlobalWithDb = typeof globalThis & {

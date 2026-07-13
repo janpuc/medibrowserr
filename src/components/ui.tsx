@@ -40,7 +40,7 @@ export function Card({
   );
 }
 
-type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+type ButtonProps = React.ComponentProps<"button"> & {
   variant?: "primary" | "secondary" | "ghost" | "danger";
   size?: "sm" | "md";
 };
@@ -57,7 +57,7 @@ export function Button({
       className={clsx(
         "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
         size === "sm" ? "px-2.5 py-1.5 text-xs" : "px-3.5 py-2 text-sm",
-        variant === "primary" && "bg-clinic text-white hover:bg-clinic-deep",
+        variant === "primary" && "bg-clinic text-white hover:bg-clinic-hover",
         variant === "secondary" &&
           "border border-line bg-surface text-ink hover:border-clinic hover:text-clinic-deep",
         variant === "ghost" && "text-ink-soft hover:bg-paper hover:text-ink",

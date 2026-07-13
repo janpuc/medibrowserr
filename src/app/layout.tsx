@@ -15,12 +15,21 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "medibrowserr",
   description: "Self-hosted appointment watcher for Medicover Poland",
-  icons: { icon: "/favicon.svg" },
 };
+
+/** Applies the stored theme before paint so dark mode never flashes light. */
+const themeInit = `try{var t=localStorage.getItem("theme");var d=t==="dark"||((!t||t==="system")&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d)}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
+    <html
+      lang="en"
+      className={`${geist.variable} ${geistMono.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
+      </head>
       <body className="min-h-screen">
         <div className="flex min-h-screen">
           <Nav />

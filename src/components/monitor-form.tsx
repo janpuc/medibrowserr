@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, Telescope } from "lucide-react";
 import { api, formatSlotDate, type Monitor } from "@/lib/client";
+import { matchSpecialty } from "@/lib/fuzzy";
 import { Button, Card, Field, inputClass, Spinner } from "@/components/ui";
 import { MultiSelect, type Option } from "@/components/multi-select";
 
@@ -35,6 +36,12 @@ const DOCTOR_LANGUAGES: Option[] = [
  */
 export function MonitorForm({ existing }: { existing?: Monitor }) {
   const router = useRouter();
+  // "?hint=Konsultacja kardiologa" — arriving from the coverage page.
+  const hint = useSearchParams().get("hint");
+  const hintState = useRef<{ resolved: boolean; flipped: boolean }>({
+    resolved: false,
+    flipped: false,
+  });
   const toOptions = (ids: string, values: string) => {
     const idArr = JSON.parse(ids) as (string | number)[];
     const valArr = JSON.parse(values) as string[];
@@ -116,6 +123,26 @@ export function MonitorForm({ existing }: { existing?: Monitor }) {
           sel.map((s) => (s.value === s.id ? (dict.find((d) => d.id === s.id) ?? s) : s));
         setRegions((prev) => resolve(prev, f.regions));
         setClinics((prev) => resolve(prev, f.clinics));
+        // Coverage → monitor handoff: preselect the best-matching specialty.
+        if (hint && !existing && !hintState.current.resolved) {
+          const match = matchSpecialty(hint, f.specialties);
+          if (match) {
+            hintState.current.resolved = true;
+            setSpecialties((prev) => (prev.length ? prev : [match]));
+            setName((prev) => prev || hint);
+          } else if (!hintState.current.flipped) {
+            // Many coverage entries are diagnostics — try that dictionary once.
+            hintState.current.flipped = true;
+            setSearchType((prev) =>
+              prev === "Standard" ? "DiagnosticProcedure" : "Standard",
+            );
+          } else {
+            // No match anywhere: keep the name, let the user pick manually.
+            hintState.current.resolved = true;
+            setSearchType("Standard");
+            setName((prev) => prev || hint);
+          }
+        }
       })
       .catch((err) => {
         if (!cancelled)

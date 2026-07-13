@@ -12,21 +12,22 @@ import {
   type MedicoverStatus,
   type Monitor,
 } from "@/lib/client";
+import { ConfirmDialog, Toast } from "@/components/confirm";
 import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from "@/components/ui";
 
 export default function DashboardPage() {
   const monitors = usePoll<Monitor[]>("/api/monitors", 15_000);
   const status = usePoll<MedicoverStatus>("/api/medicover/status", 30_000);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [runResult, setRunResult] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: "neutral" | "found" | "alert" } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Monitor | null>(null);
 
   const act = async (id: number, fn: () => Promise<unknown>) => {
     setBusyId(id);
-    setRunResult(null);
     try {
       await fn();
     } catch (err) {
-      setRunResult(err instanceof Error ? err.message : String(err));
+      setToast({ message: err instanceof Error ? err.message : String(err), tone: "alert" });
     } finally {
       setBusyId(null);
       void monitors.reload();
@@ -49,7 +50,7 @@ export default function DashboardPage() {
         action={
           <Link
             href="/monitors/new"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-clinic px-3.5 py-2 text-sm font-medium text-white hover:bg-clinic-deep"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-clinic px-3.5 py-2 text-sm font-medium text-white hover:bg-clinic-hover"
           >
             <Plus size={16} /> Add monitor
           </Link>
@@ -88,9 +89,9 @@ export default function DashboardPage() {
       ) : null}
 
       {/* Departures-board status strip */}
-      <div className="mb-6 flex flex-wrap items-center gap-x-3 rounded-xl border border-line bg-ink px-5 py-3 font-mono text-[13px] text-white/90">
+      <div className="mb-6 flex flex-wrap items-center gap-x-3 rounded-xl border border-line bg-board px-5 py-3 font-mono text-[13px] text-white/90">
         <span>
-          <span className="text-found">{active.length}</span> monitor
+          <span className="text-found-bright">{active.length}</span> monitor
           {active.length === 1 ? "" : "s"} on duty
         </span>
         <span className="text-white/30">·</span>
@@ -109,10 +110,6 @@ export default function DashboardPage() {
         ) : null}
       </div>
 
-      {runResult ? (
-        <Card className="mb-4 border-alert px-4 py-3 text-sm text-alert">{runResult}</Card>
-      ) : null}
-
       {monitors.loading ? (
         <div className="flex justify-center py-16">
           <Spinner />
@@ -120,11 +117,11 @@ export default function DashboardPage() {
       ) : list.length === 0 ? (
         <EmptyState
           title="No monitors yet"
-          body="Create your first monitor: pick regions and a specialty, optionally narrow to clinics or a doctor, and medibrowserr will keep watch."
+          body="Create your first monitor: pick a specialty (your regions are prefilled from Settings) and medibrowserr will keep watch."
           action={
             <Link
               href="/monitors/new"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-clinic px-3.5 py-2 text-sm font-medium text-white hover:bg-clinic-deep"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-clinic px-3.5 py-2 text-sm font-medium text-white hover:bg-clinic-hover"
             >
               <Plus size={16} /> Add monitor
             </Link>
@@ -159,12 +156,8 @@ export default function DashboardPage() {
                         {m.name}
                       </Link>
                       <Badge tone="clinic">every {m.intervalMinutes}m</Badge>
-                      <Badge tone={m.messageLanguage === "pl" ? "neutral" : "neutral"}>
-                        {m.messageLanguage.toUpperCase()}
-                      </Badge>
-                      {m.lastStatus === "error" ? (
-                        <Badge tone="alert">error</Badge>
-                      ) : null}
+                      <Badge tone="neutral">{m.messageLanguage.toUpperCase()}</Badge>
+                      {m.lastStatus === "error" ? <Badge tone="alert">error</Badge> : null}
                     </div>
                     <p className="mt-1 truncate text-[13px] text-ink-soft">
                       {scope.join(" → ")}
@@ -191,9 +184,10 @@ export default function DashboardPage() {
                             `/api/monitors/${m.id}/run`,
                             { method: "POST" },
                           );
-                          setRunResult(null);
-                          void monitors.reload();
-                          alert(`Sweep done: ${r.found} slots, ${r.newCount} new.`);
+                          setToast({
+                            message: `Sweep done: ${r.found} slot${r.found === 1 ? "" : "s"}, ${r.newCount} new.`,
+                            tone: r.newCount ? "found" : "neutral",
+                          });
                         })
                       }
                     >
@@ -225,13 +219,7 @@ export default function DashboardPage() {
                       size="sm"
                       variant="ghost"
                       title="Delete"
-                      onClick={() => {
-                        if (confirm(`Delete monitor "${m.name}" and its history?`)) {
-                          void act(m.id, () =>
-                            api(`/api/monitors/${m.id}`, { method: "DELETE" }),
-                          );
-                        }
-                      }}
+                      onClick={() => setPendingDelete(m)}
                     >
                       <Trash2 size={15} />
                     </Button>
@@ -242,6 +230,29 @@ export default function DashboardPage() {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={`Delete "${pendingDelete?.name}"?`}
+        body="The monitor and every slot it has caught will be removed. This can't be undone."
+        confirmLabel="Delete monitor"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          const m = pendingDelete;
+          setPendingDelete(null);
+          if (m) {
+            void act(m.id, async () => {
+              await api(`/api/monitors/${m.id}`, { method: "DELETE" });
+              setToast({ message: `Monitor "${m.name}" deleted.`, tone: "neutral" });
+            });
+          }
+        }}
+      />
+      <Toast
+        message={toast?.message ?? null}
+        tone={toast?.tone}
+        onDone={() => setToast(null)}
+      />
     </>
   );
 }

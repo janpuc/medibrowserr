@@ -91,9 +91,33 @@ export const notifications = sqliteTable("notifications", {
   error: text("error"),
 });
 
-/** Small cache for external lookups (Medicover dictionaries). */
-export const dictCache = sqliteTable("dict_cache", {
-  key: text("key").primaryKey(),
-  value: text("value").notNull(),
-  fetchedAt: integer("fetched_at").notNull(),
+/**
+ * Locally seeded copy of the Medicover service catalog with each service's
+ * verdict under the user's plan. Built by the coverage seeder (~20 min,
+ * background) and refreshed every ~3 weeks — the catalog rarely changes.
+ */
+export const coverageServices = sqliteTable("coverage_services", {
+  serviceId: text("service_id").primaryKey(),
+  name: text("name").notNull(),
+  code: text("code"),
+  description: text("description"),
+  /** covered | covered_referral | discount | fixed_price | payable | null (pending). */
+  verdict: text("verdict"),
+  referralRequired: integer("referral_required", { mode: "boolean" }),
+  discount: integer("discount"),
+  fixedPayment: integer("fixed_payment"),
+  volumeLimit: integer("volume_limit"),
+  volumeUsed: integer("volume_used"),
+  valueLimit: integer("value_limit"),
+  valueUsed: integer("value_used"),
+  productName: text("product_name"),
+  planName: text("plan_name"),
+  /** JSON string[] — the plan's fine print for the footnote. */
+  remarks: text("remarks"),
+  /** Raw productSummaries JSON for the detail view. */
+  summaryJson: text("summary_json"),
+  /** When the catalog entry was last seen; drives cleanup. */
+  catalogAt: integer("catalog_at").notNull(),
+  /** When the verdict was last fetched; null = pending. */
+  fetchedAt: integer("fetched_at"),
 });
