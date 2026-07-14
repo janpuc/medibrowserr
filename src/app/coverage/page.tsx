@@ -116,11 +116,12 @@ function ServiceRow({ item }: { item: IndexItem }) {
   return (
     <li className="border-b border-line/60 last:border-b-0">
       <button
-        className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-paper/60"
+        className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5 text-left hover:bg-paper/60"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
       >
-        <span className="min-w-0 flex-1">
+        {/* basis keeps the name readable — extra badges wrap below instead. */}
+        <span className="min-w-0 flex-1 basis-44">
           <span className="block truncate text-sm font-medium">{item.name}</span>
           {item.code ? (
             <span className="font-mono text-[11px] text-ink-soft">{item.code}</span>

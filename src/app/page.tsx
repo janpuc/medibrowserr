@@ -103,7 +103,7 @@ export default function DashboardPage() {
           <span className="text-white">{caught}</span> slot{caught === 1 ? "" : "s"} on the board
         </span>
         {status.data?.profile?.firstName ? (
-          <span className="ml-auto text-white/60">
+          <span className="hidden text-white/60 sm:ml-auto sm:block">
             {status.data.profile.firstName} {status.data.profile.lastName ?? ""} · MRN{" "}
             {status.data.profile.mrn}
           </span>
@@ -138,7 +138,7 @@ export default function DashboardPage() {
                 (m.doctorNameFilter ? `name ~ "${m.doctorNameFilter}"` : "any doctor"),
             ];
             return (
-              <Card key={m.id} className="px-5 py-4">
+              <Card key={m.id} className="px-4 py-3.5 sm:px-5 sm:py-4">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                   <span
                     className={clsx(
@@ -147,7 +147,7 @@ export default function DashboardPage() {
                     )}
                     title={m.active ? "On duty" : "Paused"}
                   />
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 basis-52">
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={`/monitors/${m.id}`}
@@ -166,13 +166,15 @@ export default function DashboardPage() {
                       <p className="mt-1 truncate text-xs text-alert">{m.lastError}</p>
                     ) : null}
                   </div>
-                  <div className="flex items-center gap-4 font-mono text-xs text-ink-soft">
-                    <span title="Last sweep">{timeAgo(m.lastRunAt)}</span>
-                    <span title="Slots seen in the last sweep">
-                      {m.lastFoundCount ?? "—"} found
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
+                  {/* Phones: stats left, actions right on their own row. */}
+                  <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-4">
+                    <div className="flex items-center gap-3 font-mono text-xs text-ink-soft sm:gap-4">
+                      <span title="Last sweep">{timeAgo(m.lastRunAt)}</span>
+                      <span title="Slots seen in the last sweep">
+                        {m.lastFoundCount ?? "—"} found
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
                     <Button
                       size="sm"
                       variant="ghost"
@@ -223,6 +225,7 @@ export default function DashboardPage() {
                     >
                       <Trash2 size={15} />
                     </Button>
+                    </div>
                   </div>
                 </div>
               </Card>

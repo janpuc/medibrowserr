@@ -397,7 +397,7 @@ export function MonitorForm({ existing }: { existing?: Monitor }) {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Check every">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {[15, 30, 60].map((m) => (
                 <Button
                   key={m}

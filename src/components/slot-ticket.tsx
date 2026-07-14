@@ -30,7 +30,7 @@ export function SlotTicket({ row }: { row: FoundSlotRow }) {
       )}
     >
       {/* Perforated time stub */}
-      <div className="ticket-edge relative flex w-24 shrink-0 flex-col items-center justify-center border-r border-dashed border-line bg-clinic-wash px-2 py-4">
+      <div className="ticket-edge relative flex w-[76px] shrink-0 flex-col items-center justify-center border-r border-dashed border-line bg-clinic-wash px-2 py-4 sm:w-24">
         <span
           className={clsx(
             "font-mono text-lg font-medium text-clinic-deep",
@@ -42,8 +42,8 @@ export function SlotTicket({ row }: { row: FoundSlotRow }) {
         <span className="mt-0.5 font-mono text-[11px] text-ink-soft">{datePart}</span>
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center gap-4 px-4 py-3">
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-paper font-display text-sm font-semibold text-ink-soft">
+      <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 sm:gap-4 sm:px-4">
+        <div className="hidden h-11 w-11 shrink-0 place-items-center rounded-full bg-paper font-display text-sm font-semibold text-ink-soft sm:grid">
           {initials}
         </div>
         <div className="min-w-0 flex-1">
@@ -65,7 +65,12 @@ export function SlotTicket({ row }: { row: FoundSlotRow }) {
           ) : (
             <Badge tone="found">AVAILABLE</Badge>
           )}
-          {monitorName ? <Badge tone="neutral">{monitorName}</Badge> : null}
+          {/* The monitor name is context, not essence — phones drop it. */}
+          {monitorName ? (
+            <span className="hidden sm:block">
+              <Badge tone="neutral">{monitorName}</Badge>
+            </span>
+          ) : null}
         </div>
       </div>
     </div>
