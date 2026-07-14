@@ -115,7 +115,6 @@ export function MobileTabs() {
             </Link>
           );
         })}
-        <ThemeToggle variant="tab" />
       </div>
     </nav>
   );

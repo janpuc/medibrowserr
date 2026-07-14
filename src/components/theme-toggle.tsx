@@ -14,7 +14,11 @@ function apply(theme: Theme) {
 }
 
 /** Cycles light → dark → system; persists in localStorage. */
-export function ThemeToggle({ variant = "sidebar" }: { variant?: "sidebar" | "tab" }) {
+export function ThemeToggle({
+  variant = "sidebar",
+}: {
+  variant?: "sidebar" | "select";
+}) {
   const [theme, setTheme] = useState<Theme>("system");
 
   useEffect(() => {
@@ -38,16 +42,22 @@ export function ThemeToggle({ variant = "sidebar" }: { variant?: "sidebar" | "ta
     setTheme(next);
   };
 
-  if (variant === "tab") {
+  if (variant === "select") {
     return (
-      <button
-        onClick={onClick}
-        className="flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium text-ink-soft"
-        title={`Theme: ${theme} — tap for ${next}`}
+      <select
+        className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-clinic focus:outline-none"
+        value={theme}
+        onChange={(e) => {
+          const value = e.target.value as Theme;
+          localStorage.setItem("theme", value);
+          setTheme(value);
+        }}
+        aria-label="Theme"
       >
-        <Icon size={20} strokeWidth={2} />
-        Theme
-      </button>
+        <option value="system">System</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
     );
   }
   return (

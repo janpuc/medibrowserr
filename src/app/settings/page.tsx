@@ -7,6 +7,7 @@ import { Button, Card, Field, PageHeader, Spinner, inputClass } from "@/componen
 import { ConnectWizard } from "@/components/connect-wizard";
 import { GithubMark } from "@/components/nav";
 import { MultiSelect, type Option } from "@/components/multi-select";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 interface Settings {
   medicoverUser: string;
@@ -558,7 +559,7 @@ export default function SettingsPage() {
         <section>
           <h2 className="mb-3 font-display text-lg font-semibold">Backup</h2>
           <Card className="flex flex-wrap items-center gap-3 px-5 py-4">
-            <p className="min-w-0 flex-1 text-sm text-ink-soft">
+            <p className="min-w-0 flex-1 basis-full text-sm text-ink-soft sm:basis-0">
               Settings and monitor configurations. The export contains your credentials —
               store it safely. Importing never overrides env-pinned values, skips monitors
               whose name already exists, and the Medicover connection has to be redone once.
@@ -593,6 +594,16 @@ export default function SettingsPage() {
           {saving ? <Spinner className="border-white/40 border-t-white" /> : null}
           Save changes
         </Button>
+
+        {/* Desktop has the theme toggle in the sidebar; phones get it here. */}
+        <section className="sm:hidden">
+          <h2 className="mb-3 font-display text-lg font-semibold">Appearance</h2>
+          <Card className="p-5">
+            <Field label="Theme" hint="Applies immediately; saved on this device.">
+              <ThemeToggle variant="select" />
+            </Field>
+          </Card>
+        </section>
 
         <section>
           <h2 className="mb-3 font-display text-lg font-semibold">About</h2>
