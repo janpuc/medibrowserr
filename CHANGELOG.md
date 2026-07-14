@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/janpuc/medibrowserr/compare/v1.2.0...v1.3.0) (2026-07-14)
+
+
+### Features
+
+* proper mobile layout — bottom tab bar and stacking cards ([beca848](https://github.com/janpuc/medibrowserr/commit/beca8486b5775c19b178dd44a0d6bf011c554990))
+
+
+### Bug Fixes
+
+* move the mobile theme control into Settings ([447ff81](https://github.com/janpuc/medibrowserr/commit/447ff81db4e21345ee52eef6f7d920adb1834f67))
+
 ## [1.2.0](https://github.com/janpuc/medibrowserr/compare/v1.1.0...v1.2.0) (2026-07-13)
 
 
